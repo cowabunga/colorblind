@@ -43,6 +43,7 @@
 #include <cstdio>
 
 #include "cascadedetect.hpp"
+#include "opencv2/highgui/highgui.hpp"
 
 #include <string>
 

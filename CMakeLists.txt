@@ -444,6 +444,8 @@ add_subdirectory(include)
 
 # OpenCV modules
 add_subdirectory(modules)
+add_subdirectory(matcher)
+add_subdirectory(brief_match)
 
 # Generate targets for documentation
 add_subdirectory(doc)
