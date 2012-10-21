@@ -43,6 +43,29 @@ static double match(const vector<KeyPoint>& /*kpts_train*/, const vector<KeyPoin
   return ((double)getTickCount() - t) / getTickFrequency();
 }
 
+static void compute_distance_historgam(const vector<DMatch>& matches, const int histogramSize)
+{
+  if (matches.size() == 0)
+      return;
+  double minDist = matches.front().distance;
+  double maxDist = matches.back().distance;
+  double distStep = (maxDist - minDist)/histogramSize;
+
+  cout << "Distance histogram:" << endl;
+  cout << "Min distance: " << minDist << endl;
+  cout << "Max distance: " << maxDist << endl;
+  cout << "Histogram distance step: " << distStep << endl;
+
+  if (distStep <= 0)
+      return;
+  vector<int> counts(histogramSize, 0);
+  for (vector<DMatch>::const_iterator it = matches.begin(); it < matches.end(); ++it)
+      counts[min(int((it->distance - minDist)/distStep), histogramSize-1)] += 1;
+  for (int i=0; i < histogramSize; ++i)
+      cout << minDist + (i+0.5)*distStep << ": "<< counts[i] << endl;
+  cout << endl;
+}
+
 int main(int argc, const char ** argv)
 {
   if (argc < 3) {
@@ -52,9 +75,9 @@ int main(int argc, const char ** argv)
   string im1_name = argv[1];
   string im2_name = argv[2];
 
-  FastFeatureDetector detector1(50);
-  MserFeatureDetector detector2;
-  BriefDescriptorExtractor desc_extractor(32);
+  int descSize = 32;
+  BriefDescriptorExtractor desc_extractor(descSize);
+  double maxDistance = descSize*8;
 
   Mat im1 = imread(im1_name, CV_LOAD_IMAGE_GRAYSCALE);
   Mat im2 = imread(im2_name, CV_LOAD_IMAGE_GRAYSCALE);
@@ -65,68 +88,93 @@ int main(int argc, const char ** argv)
     return 1;
   }
 
-  double t = (double)getTickCount();
-
   vector<KeyPoint> kpts_1, kpts_2;
-  //detector1.detect(im1, kpts_1);
-  //detector1.detect(im2, kpts_2);
+  double time_step1 = (double)getTickCount();
+  FastFeatureDetector detector1(50);
+  detector1.detect(im1, kpts_1);
+  detector1.detect(im2, kpts_2);
+
+  time_step1 = ((double)getTickCount() - time_step1) / getTickFrequency();
+  cout << "corners:" << endl
+       << "found " << kpts_1.size() << " keypoints in " << im1_name << endl
+       << "found " << kpts_2.size() << " keypoints in " << im2_name << endl
+       << "took " << time_step1 << " seconds." << endl << endl;
 
   vector<KeyPoint> kpts_21, kpts_22;
+  /*double t2 = (double)getTickCount();
+  SimpleBlobDetector detector2;
   detector2.detect(im1, kpts_21);
   detector2.detect(im2, kpts_22);
+
+  t2 = ((double)getTickCount() - t2) / getTickFrequency();
+  cout << "BLOBS" << endl
+       << "found " << kpts_21.size() << " keypoints in " << im1_name << endl
+       << "found " << kpts_22.size() << " keypoints in " << im2_name << endl
+       << "took " << t2 << " seconds." << endl << endl;
 
   kpts_1.insert(kpts_1.end(), kpts_21.begin(), kpts_21.end());
   kpts_2.insert(kpts_2.end(), kpts_22.begin(), kpts_22.end());
 
-  t = ((double)getTickCount() - t) / getTickFrequency();
-
-  cout << "found " << kpts_1.size() << " keypoints in " << im1_name << endl << "fount " << kpts_2.size()
-      << " keypoints in " << im2_name << endl << "took " << t << " seconds." << endl;
+  cout << "TOTAL" << endl << "found " << kpts_1.size() << " keypoints in " << im1_name << endl
+       << "found " << kpts_2.size() << " keypoints in " << im2_name << endl
+       << "took " << time_step1 + t2 << " seconds." << endl << endl;*/
 
   Mat desc_1, desc_2;
-
-  cout << "computing descriptors..." << endl;
-
-  t = (double)getTickCount();
+  cout << "computing descriptors...";
+  double time_step2 = (double)getTickCount();
 
   desc_extractor.compute(im1, kpts_1, desc_1);
   desc_extractor.compute(im2, kpts_2, desc_2);
 
-  t = ((double)getTickCount() - t) / getTickFrequency();
-
-  cout << "done computing descriptors... took " << t << " seconds" << endl;
+  time_step2 = ((double)getTickCount() - time_step2) / getTickFrequency();
+  cout << " took " << time_step2 << " seconds" << endl << endl;
 
   //Do matching using features2d
-  cout << "matching with BruteForceMatcher<Hamming>" << endl;
-  BFMatcher matcher_popcount(NORM_HAMMING);
-  vector<DMatch> matches_popcount;
-  double pop_time = match(kpts_1, kpts_2, matcher_popcount, desc_1, desc_2, matches_popcount);
-  cout << "done BruteForceMatcher<Hamming> matching. took " << pop_time << " seconds" << endl;
+  cout << "matching with BruteForceMatcher<Hamming>...";
+  BFMatcher matcher(NORM_HAMMING);
+  vector<DMatch> matches;
+  double time_step3 = match(kpts_1, kpts_2, matcher, desc_1, desc_2, matches);
+  cout << " took " << time_step3 << " seconds" << endl << endl;
 
-  std::sort(matches_popcount.begin(), matches_popcount.end());
+  std::vector<DMatch> good_matches;
+  for (vector<DMatch>::const_iterator it = matches.begin(); it < matches.end(); ++it)
+      if (it->distance < 0.07*maxDistance)
+          good_matches.push_back(*it);
 
-  vector<DMatch> top100_matches(matches_popcount.begin(), matches_popcount.begin() + min<int>(100,matches_popcount.size()));
+  cout << "All steps took " << time_step1 + time_step2 + time_step3 << " seconds" << endl << endl;
+
+  std::sort(good_matches.begin(), good_matches.end());
+
+  // Compute and print distance historgam
+  compute_distance_historgam(good_matches, 50);
+
+  //vector<DMatch> top100_matches(good_matches.begin(), good_matches.begin() + min<int>(100,good_matches.size()));
 
   vector<char> outlier_mask;
-  size_t chunk_size = 1;
-  for( size_t i = 0; i < matches_popcount.size() ; i += chunk_size ) {
-      vector<DMatch> top_matches(matches_popcount.begin() + i, matches_popcount.begin() + min<int>(i + chunk_size, matches_popcount.size()));
+  size_t chunk_size = 300;
+  for( size_t i = 0; i < good_matches.size() ; i += chunk_size ) {
+      vector<DMatch> top_matches(good_matches.begin() + i, good_matches.begin() + min<int>(i + chunk_size, good_matches.size()));
       Mat outimg;
       drawMatches(im2, kpts_2, im1, kpts_1, top_matches, outimg, Scalar::all(-1), Scalar::all(-1));
-      imshow("matches - popcount - outliers removed", outimg);
+      imshow("matches outliers removed", outimg);
       waitKey();
-      continue;
 
-      vector<Point2f> mpts_1, mpts_2;
-      matches2points(top_matches, kpts_1, kpts_2, mpts_1, mpts_2); //Extract a list of the (x,y) location of the matches
-      Mat H = findHomography(mpts_2, mpts_1, RANSAC, 1);
-      Mat warped;
-      Mat diff;
-      warpPerspective(im2, warped, H, im1.size());
-      imshow("warped", warped);
-      absdiff(im1,warped,diff);
-      imshow("diff", diff);
-      waitKey();
+      if (top_matches.size() > 3) {
+          vector<Point2f> mpts_1, mpts_2;
+          matches2points(top_matches, kpts_1, kpts_2, mpts_1, mpts_2);
+          Mat H = findHomography(mpts_2, mpts_1, RANSAC, 1);
+          if (H.total() < 2)
+              cout << "could not find a homography" << endl;
+          else {
+              Mat warped;
+              Mat diff;
+              warpPerspective(im2, warped, H, im1.size());
+              imshow("warped", warped);
+              absdiff(im1,warped,diff);
+              imshow("diff", diff);
+              waitKey();
+          }
+      }
       break;
   }
   
