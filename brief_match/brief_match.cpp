@@ -52,7 +52,8 @@ int main(int argc, const char ** argv)
   string im1_name = argv[1];
   string im2_name = argv[2];
 
-  FastFeatureDetector detector(50);
+  FastFeatureDetector detector1(50);
+  MserFeatureDetector detector2;
   BriefDescriptorExtractor desc_extractor(32);
 
   Mat im1 = imread(im1_name, CV_LOAD_IMAGE_GRAYSCALE);
@@ -67,8 +68,15 @@ int main(int argc, const char ** argv)
   double t = (double)getTickCount();
 
   vector<KeyPoint> kpts_1, kpts_2;
-  detector.detect(im1, kpts_1);
-  detector.detect(im2, kpts_2);
+  //detector1.detect(im1, kpts_1);
+  //detector1.detect(im2, kpts_2);
+
+  vector<KeyPoint> kpts_21, kpts_22;
+  detector2.detect(im1, kpts_21);
+  detector2.detect(im2, kpts_22);
+
+  kpts_1.insert(kpts_1.end(), kpts_21.begin(), kpts_21.end());
+  kpts_2.insert(kpts_2.end(), kpts_22.begin(), kpts_22.end());
 
   t = ((double)getTickCount() - t) / getTickFrequency();
 
@@ -99,30 +107,28 @@ int main(int argc, const char ** argv)
 
   vector<DMatch> top100_matches(matches_popcount.begin(), matches_popcount.begin() + min<int>(100,matches_popcount.size()));
 
-  vector<Point2f> mpts_1, mpts_2;
-  matches2points(matches_popcount, kpts_1, kpts_2, mpts_1, mpts_2); //Extract a list of the (x,y) location of the matches
   vector<char> outlier_mask;
-  //OutputArray outlier_mask;
-  //Mat H = findHomography(mpts_2, mpts_1, RANSAC, 1, outlier_mask);
-  Mat H = findHomography(mpts_2, mpts_1, RANSAC, 1);
-
-  size_t chunk_size = 100;
-  for( int i = 0; i < matches_popcount.size() ; i += chunk_size ) {
+  size_t chunk_size = 1;
+  for( size_t i = 0; i < matches_popcount.size() ; i += chunk_size ) {
       vector<DMatch> top_matches(matches_popcount.begin() + i, matches_popcount.begin() + min<int>(i + chunk_size, matches_popcount.size()));
       Mat outimg;
-      //drawMatches(im2, kpts_2, im1, kpts_1, top_matches, outimg, Scalar::all(-1), Scalar::all(-1), outlier_mask);
       drawMatches(im2, kpts_2, im1, kpts_1, top_matches, outimg, Scalar::all(-1), Scalar::all(-1));
       imshow("matches - popcount - outliers removed", outimg);
       waitKey();
+      continue;
+
+      vector<Point2f> mpts_1, mpts_2;
+      matches2points(top_matches, kpts_1, kpts_2, mpts_1, mpts_2); //Extract a list of the (x,y) location of the matches
+      Mat H = findHomography(mpts_2, mpts_1, RANSAC, 1);
+      Mat warped;
+      Mat diff;
+      warpPerspective(im2, warped, H, im1.size());
+      imshow("warped", warped);
+      absdiff(im1,warped,diff);
+      imshow("diff", diff);
+      waitKey();
       break;
   }
-
-  Mat warped;
-  Mat diff;
-  warpPerspective(im2, warped, H, im1.size());
-  imshow("warped", warped);
-  absdiff(im1,warped,diff);
-  imshow("diff", diff);
-  waitKey();
+  
   return 0;
 }
