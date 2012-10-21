@@ -28,5 +28,8 @@ int main(int argc, char** argv) {
 
     cvSaveImage(argv[2], resultImage);
 
+    // TODO
+    // Fix mem leaks.
+
     return 0;
 }
