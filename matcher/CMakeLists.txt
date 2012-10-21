@@ -7,7 +7,5 @@ ocv_include_modules(${OPENCV_MATCHER_REQUIRED_DEPS})
 ocv_include_directories(../include)
 
 project( matcher )
-find_package( OpenCV REQUIRED )
 add_executable( matcher matcher )
-#target_link_libraries(matcher ${OpenCV_LIBS} ${OPENCV_LINKER_LIBS} ${OPENCV_MATCHER_REQUIRED_DEPS} )
 target_link_libraries(matcher ${OPENCV_LINKER_LIBS} ${OPENCV_MATCHER_REQUIRED_DEPS} )
