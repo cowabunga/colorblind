@@ -1,8 +1,6 @@
 /*
- * matching_test.cpp
- *
- *  Created on: Oct 17, 2010
- *      Author: ethan
+ * Brief matcher
+ *      Author: L
  */
 #include "opencv2/core/core.hpp"
 #include "opencv2/calib3d/calib3d.hpp"
@@ -45,25 +43,66 @@ static double match(const vector<KeyPoint>& /*kpts_train*/, const vector<KeyPoin
 
 static void compute_distance_historgam(const vector<DMatch>& matches, const int histogramSize)
 {
-  if (matches.size() == 0)
+  vector<DMatch>::const_iterator iMin = std::min_element(matches.begin(), matches.end());
+  vector<DMatch>::const_iterator iMax = std::max_element(matches.begin(), matches.end());
+  if (iMin == matches.end() || iMax == matches.end())
       return;
-  double minDist = matches.front().distance;
-  double maxDist = matches.back().distance;
-  double distStep = (maxDist - minDist)/histogramSize;
+  double minDist = iMin->distance;
+  double maxDist = iMax->distance;
+  double distStep = std::min(maxDist - minDist, 1e-30)/histogramSize;
 
-  cout << "Distance histogram:" << endl;
-  cout << "Min distance: " << minDist << endl;
-  cout << "Max distance: " << maxDist << endl;
-  cout << "Histogram distance step: " << distStep << endl;
+  std::cout << "Distance histogram:" << std::endl;
+  std::cout << "Min distance: " << minDist << std::endl;
+  std::cout << "Max distance: " << maxDist << std::endl;
+  std::cout << "Histogram distance step: " << distStep << std::endl;
 
-  if (distStep <= 0)
-      return;
   vector<int> counts(histogramSize, 0);
   for (vector<DMatch>::const_iterator it = matches.begin(); it < matches.end(); ++it)
       counts[min(int((it->distance - minDist)/distStep), histogramSize-1)] += 1;
   for (int i=0; i < histogramSize; ++i)
-      cout << minDist + (i+0.5)*distStep << ": "<< counts[i] << endl;
-  cout << endl;
+      std::cout << minDist + (i+0.5)*distStep << ": "<< counts[i] << std::endl;
+  std::cout << std::endl;
+}
+
+static void filter_matches(const std::vector<DMatch>& matches, double max_distance,
+                           std::vector<DMatch>& filtered)
+{
+  filtered.clear();
+  for (vector<DMatch>::const_iterator it = matches.begin(); it < matches.end(); ++it)
+      if (it->distance < max_distance)
+          filtered.push_back(*it);
+}
+
+bool find_perspective_transform(const vector<Point2f>& pnts1, const vector<Point2f>& pnts2, Mat& trf )
+{
+    size_t size = pnts1.size();
+    assert(size == pnts2.size());
+    if (size > 30)
+        std::cout << "WARNING: too many points to find perspective transform with brute force: " << size << std::endl;
+
+    Point2f from[4], to[4];
+    size_t i, j, k, l;
+    for (i = 0; i < size; ++i) {
+        from[0] = pnts1[i];
+        to[0] = pnts2[i];
+        for (j = i+1; j < size; ++j) {
+            from[1] = pnts1[j];
+            to[1] = pnts2[j];
+            for (k = j+1; k < size; ++k) {
+                from[2] = pnts1[k];
+                to[2] = pnts2[k];
+                for (l = k+1; l < size; ++l) {
+                    from[3] = pnts1[l];
+                    to[3] = pnts2[l];
+                    trf = cv::getPerspectiveTransform(from, to);
+                    // temporary return the first :)
+                    /*if (trf.total() >= 3)*/
+                        /*return true;*/
+                }
+            }
+        }
+    }
+    return false;
 }
 
 int main(int argc, const char ** argv)
@@ -95,10 +134,10 @@ int main(int argc, const char ** argv)
   detector1.detect(im2, kpts_2);
 
   time_step1 = ((double)getTickCount() - time_step1) / getTickFrequency();
-  cout << "corners:" << endl
-       << "found " << kpts_1.size() << " keypoints in " << im1_name << endl
-       << "found " << kpts_2.size() << " keypoints in " << im2_name << endl
-       << "took " << time_step1 << " seconds." << endl << endl;
+  std::cout << "corners:" << std::endl
+       << "found " << kpts_1.size() << " keypoints in " << im1_name << std::endl
+       << "found " << kpts_2.size() << " keypoints in " << im2_name << std::endl
+       << "took " << time_step1 << " seconds." << std::endl << std::endl;
 
   vector<KeyPoint> kpts_21, kpts_22;
   /*double t2 = (double)getTickCount();
@@ -107,48 +146,59 @@ int main(int argc, const char ** argv)
   detector2.detect(im2, kpts_22);
 
   t2 = ((double)getTickCount() - t2) / getTickFrequency();
-  cout << "BLOBS" << endl
-       << "found " << kpts_21.size() << " keypoints in " << im1_name << endl
-       << "found " << kpts_22.size() << " keypoints in " << im2_name << endl
-       << "took " << t2 << " seconds." << endl << endl;
+  std::cout << "BLOBS" << std::endl
+       << "found " << kpts_21.size() << " keypoints in " << im1_name << std::endl
+       << "found " << kpts_22.size() << " keypoints in " << im2_name << std::endl
+       << "took " << t2 << " seconds." << std::endl << std::endl;
 
   kpts_1.insert(kpts_1.end(), kpts_21.begin(), kpts_21.end());
   kpts_2.insert(kpts_2.end(), kpts_22.begin(), kpts_22.end());
 
-  cout << "TOTAL" << endl << "found " << kpts_1.size() << " keypoints in " << im1_name << endl
-       << "found " << kpts_2.size() << " keypoints in " << im2_name << endl
-       << "took " << time_step1 + t2 << " seconds." << endl << endl;*/
+  std::cout << "TOTAL" << std::endl << "found " << kpts_1.size() << " keypoints in " << im1_name << std::endl
+       << "found " << kpts_2.size() << " keypoints in " << im2_name << std::endl
+       << "took " << time_step1 + t2 << " seconds." << std::endl << std::endl;*/
 
   Mat desc_1, desc_2;
-  cout << "computing descriptors...";
+  std::cout << "computing descriptors...";
   double time_step2 = (double)getTickCount();
 
   desc_extractor.compute(im1, kpts_1, desc_1);
   desc_extractor.compute(im2, kpts_2, desc_2);
 
   time_step2 = ((double)getTickCount() - time_step2) / getTickFrequency();
-  cout << " took " << time_step2 << " seconds" << endl << endl;
+  std::cout << " took " << time_step2 << " seconds" << std::endl << std::endl;
 
   //Do matching using features2d
-  cout << "matching with BruteForceMatcher<Hamming>...";
+  std::cout << "matching with BruteForceMatcher<Hamming>...";
   BFMatcher matcher(NORM_HAMMING);
   vector<DMatch> matches;
   double time_step3 = match(kpts_1, kpts_2, matcher, desc_1, desc_2, matches);
-  cout << " took " << time_step3 << " seconds" << endl << endl;
+  std::cout << " took " << time_step3 << " seconds" << std::endl << std::endl;
 
-  std::vector<DMatch> good_matches;
-  for (vector<DMatch>::const_iterator it = matches.begin(); it < matches.end(); ++it)
-      if (it->distance < 0.07*maxDistance)
-          good_matches.push_back(*it);
-
-  cout << "All steps took " << time_step1 + time_step2 + time_step3 << " seconds" << endl << endl;
-
-  std::sort(good_matches.begin(), good_matches.end());
+  std::cout << "All steps took " << time_step1 + time_step2 + time_step3 << " seconds" << std::endl << std::endl;
 
   // Compute and print distance historgam
-  compute_distance_historgam(good_matches, 50);
+  compute_distance_historgam(matches, 20);
 
-  //vector<DMatch> top100_matches(good_matches.begin(), good_matches.begin() + min<int>(100,good_matches.size()));
+  // Get only relatively good matches
+  std::vector<DMatch> good_matches;
+  filter_matches(matches, 0.1*maxDistance, good_matches);
+
+  std::sort(good_matches.begin(), good_matches.end());
+  vector<DMatch> top10_matches(good_matches.begin(), good_matches.begin() + min<int>(10,good_matches.size()));
+
+  vector<Point2f> mpts_1, mpts_2;
+  matches2points(top10_matches, kpts_1, kpts_2, mpts_1, mpts_2);
+  Mat trf;
+  if( find_perspective_transform(mpts_1, mpts_2, trf) ) {
+      Mat warped;
+      Mat diff;
+      warpPerspective(im2, warped, trf, im1.size());
+      imshow("warped", warped);
+      absdiff(im1,warped,diff);
+      imshow("diff", diff);
+      waitKey();
+  }
 
   vector<char> outlier_mask;
   size_t chunk_size = 300;
@@ -160,15 +210,14 @@ int main(int argc, const char ** argv)
       waitKey();
 
       if (top_matches.size() > 3) {
-          vector<Point2f> mpts_1, mpts_2;
           matches2points(top_matches, kpts_1, kpts_2, mpts_1, mpts_2);
-          Mat H = findHomography(mpts_2, mpts_1, RANSAC, 1);
-          if (H.total() < 2)
-              cout << "could not find a homography" << endl;
+          Mat homographyTrf = findHomography(mpts_2, mpts_1, RANSAC, 1);
+          if (homographyTrf.total() < 2)
+              std::cout << "could not find a homography" << std::endl;
           else {
               Mat warped;
               Mat diff;
-              warpPerspective(im2, warped, H, im1.size());
+              warpPerspective(im2, warped, homographyTrf, im1.size());
               imshow("warped", warped);
               absdiff(im1,warped,diff);
               imshow("diff", diff);
