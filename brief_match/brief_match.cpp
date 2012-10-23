@@ -49,7 +49,7 @@ static void compute_distance_historgam(const vector<DMatch>& matches, const int 
       return;
   double minDist = iMin->distance;
   double maxDist = iMax->distance;
-  double distStep = std::min(maxDist - minDist, 1e-30)/histogramSize;
+  double distStep = std::max(maxDist - minDist, 1e-30)/histogramSize;
 
   std::cout << "Distance histogram:" << std::endl;
   std::cout << "Min distance: " << minDist << std::endl;
@@ -73,12 +73,49 @@ static void filter_matches(const std::vector<DMatch>& matches, double max_distan
           filtered.push_back(*it);
 }
 
-bool find_perspective_transform(const vector<Point2f>& pnts1, const vector<Point2f>& pnts2, Mat& trf )
+// see perspectiveTransform(pnts1, );
+static void apply_perspective_trf(const Mat& mat, const Point2f& in, Point2f& out)
+{
+    double scale = mat.at<float>(2,0)*in.x + mat.at<float>(2,1)*in.y + mat.at<float>(2,2);
+    if (fabs(scale) < 1e-32)
+        out.x = out.y = 0.0;
+    else {
+        out.x = (mat.at<float>(0,0)*in.x + mat.at<float>(0,1)*in.y + mat.at<float>(0,2))/scale;
+        out.y = (mat.at<float>(1,0)*in.x + mat.at<float>(1,1)*in.y + mat.at<float>(1,2))/scale;
+    }
+}
+
+static double calc_trf_error(const vector<Point2f>& pnts1, const vector<Point2f>& pnts2, const Mat& trf )
+{
+    size_t size = pnts1.size();
+    Point2f p;
+    double error = 0;
+    float dx, dy;
+    Mat iTrf;
+    cv::invert(trf, iTrf);
+    for (size_t i = 0; i < size; ++i) {
+        apply_perspective_trf(trf, pnts1[i], p);
+        dx = pnts2[i].x - p.x;
+        dy = pnts2[i].y - p.y;
+        error += log(1.0+sqrt(dx*dx + dy*dy));
+
+        apply_perspective_trf(iTrf, pnts2[i], p);
+        dx = pnts1[i].x - p.x;
+        dy = pnts1[i].y - p.y;
+        error += log(1.0+sqrt(dx*dx + dy*dy));
+    }
+    return error;
+}
+
+static bool find_perspective_transform(const vector<Point2f>& pnts1, const vector<Point2f>& pnts2, Mat& best_trf )
 {
     size_t size = pnts1.size();
     assert(size == pnts2.size());
     if (size > 30)
         std::cout << "WARNING: too many points to find perspective transform with brute force: " << size << std::endl;
+
+    double err, min_err = -1;
+    Mat trf;
 
     Point2f from[4], to[4];
     size_t i, j, k, l;
@@ -95,14 +132,20 @@ bool find_perspective_transform(const vector<Point2f>& pnts1, const vector<Point
                     from[3] = pnts1[l];
                     to[3] = pnts2[l];
                     trf = cv::getPerspectiveTransform(from, to);
-                    // temporary return the first :)
-                    /*if (trf.total() >= 3)*/
-                        /*return true;*/
+                    err = calc_trf_error(pnts1, pnts2, trf);
+                    std::cout << "err = " << err << std::endl;
+                    if (min_err < 0 || err < min_err) {
+                        min_err = err;
+                        best_trf = trf;
+                    }
                 }
             }
         }
     }
-    return false;
+    if (min_err < 0)
+        return false;
+    std::cout << "min error: " << min_err << std::endl;
+    return true;
 }
 
 int main(int argc, const char ** argv)
@@ -182,10 +225,10 @@ int main(int argc, const char ** argv)
 
   // Get only relatively good matches
   std::vector<DMatch> good_matches;
-  filter_matches(matches, 0.1*maxDistance, good_matches);
+  filter_matches(matches, 0.10*maxDistance, good_matches);
 
   std::sort(good_matches.begin(), good_matches.end());
-  vector<DMatch> top10_matches(good_matches.begin(), good_matches.begin() + min<int>(10,good_matches.size()));
+  vector<DMatch> top10_matches(good_matches.begin(), good_matches.begin() + min<int>(30,good_matches.size()));
 
   vector<Point2f> mpts_1, mpts_2;
   matches2points(top10_matches, kpts_1, kpts_2, mpts_1, mpts_2);
@@ -193,10 +236,10 @@ int main(int argc, const char ** argv)
   if( find_perspective_transform(mpts_1, mpts_2, trf) ) {
       Mat warped;
       Mat diff;
-      warpPerspective(im2, warped, trf, im1.size());
-      imshow("warped", warped);
-      absdiff(im1,warped,diff);
-      imshow("diff", diff);
+      warpPerspective(im1, warped, trf, im2.size());
+      imshow("perspective", warped);
+      absdiff(im2,warped,diff);
+      imshow("perspective_diff", diff);
       waitKey();
   }
 
@@ -211,16 +254,16 @@ int main(int argc, const char ** argv)
 
       if (top_matches.size() > 3) {
           matches2points(top_matches, kpts_1, kpts_2, mpts_1, mpts_2);
-          Mat homographyTrf = findHomography(mpts_2, mpts_1, RANSAC, 1);
+          Mat homographyTrf = findHomography(mpts_1, mpts_2, RANSAC, 1);
           if (homographyTrf.total() < 2)
               std::cout << "could not find a homography" << std::endl;
           else {
               Mat warped;
               Mat diff;
-              warpPerspective(im2, warped, homographyTrf, im1.size());
-              imshow("warped", warped);
-              absdiff(im1,warped,diff);
-              imshow("diff", diff);
+              warpPerspective(im1, warped, homographyTrf, im2.size());
+              imshow("homography", warped);
+              absdiff(im2,warped,diff);
+              imshow("homography_diff", diff);
               waitKey();
           }
       }
