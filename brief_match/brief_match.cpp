@@ -7,13 +7,13 @@
 #include "opencv2/features2d/features2d.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/highgui/highgui.hpp"
+
 #include <vector>
 #include <iostream>
 #include <algorithm>
 #include <memory>
 
 using namespace cv;
-using namespace std;
 
 //Copy (x,y) location of descriptor matches found from KeyPoint data structures into Point2f vectors
 static void matches2points(const std::vector<DMatch>& matches,
@@ -128,11 +128,11 @@ static void filter_matches(const std::vector<DMatch>& matches, double max_distan
           filtered.push_back(*it);
 }
 
-static void apply_perspective_trf(const Mat& trf, const Point2f& in, Point2f& out) {
-    double scale = trf.at<float>(2,0)*in.x + trf.at<float>(2,1)*in.y + trf.at<float>(2,2);
-    if (scale > 1e-30) {
-        out.x = trf.at<float>(0,0)*in.x + trf.at<float>(0,1)*in.y + trf.at<float>(0,2);
-        out.y = trf.at<float>(1,0)*in.x + trf.at<float>(1,1)*in.y + trf.at<float>(1,2);
+static void apply_perspective_trf(const Mat& trf, const Point2f& in, Point2d& out) {
+    double scale = trf.at<double>(2,0)*in.x + trf.at<double>(2,1)*in.y + trf.at<double>(2,2);
+    if (scale > 1e-32) {
+        out.x = (trf.at<double>(0,0)*in.x + trf.at<double>(0,1)*in.y + trf.at<double>(0,2))/scale;
+        out.y = (trf.at<double>(1,0)*in.x + trf.at<double>(1,1)*in.y + trf.at<double>(1,2))/scale;
     }
     else
         out.x = out.y = 0;
@@ -140,16 +140,30 @@ static void apply_perspective_trf(const Mat& trf, const Point2f& in, Point2f& ou
 
 static double calc_perspective_trf_error( const std::vector<Point2f>& pnts1,
         const std::vector<Point2f>& pnts2, Mat& trf ) {
-    Point2f pnt;
-    double err = 0.0;
-    float dx, dy;
-    for (size_t i = 0; i < pnts1.size(); ++i) {
+    size_t size = pnts1.size();
+    if (size == 0)
+        return 0.0;
+    Point2d pnt;
+    double err = 0.0, variance = 0.0;
+    double dx, dy;
+    std::vector<double> errors(size);
+    for (size_t i = 0; i < size; ++i) {
         apply_perspective_trf(trf, pnts1[i], pnt);
         dx = pnt.x-pnts2[i].x;
         dy = pnt.y-pnts2[i].y;
-        err += log(1.0 + sqrt(dx*dx + dy*dy));
+        err = sqrt(dx*dx + dy*dy);
+        variance += err*err;
+        errors[i] = err;
     }
-    return err;
+    variance /= size;
+    double sigma = sqrt(variance);
+
+    std::sort(errors.begin(), errors.end());
+
+    double total_err = 0.0;
+    for (std::vector<double>::iterator it = errors.begin(); it != errors.end() && *it <= sigma; ++it)
+        total_err += *it;
+    return total_err;
 }
 
 static bool find_perspective_transform(const std::vector<Point2f>& pnts1,
@@ -281,10 +295,10 @@ int main(int argc, const char ** argv)
   filter_matches(matches, 0.1*maxDistance, good_matches);
 
   std::sort(good_matches.begin(), good_matches.end());
-  std::vector<DMatch> top10_matches(good_matches.begin(), good_matches.begin() + min<int>(30,good_matches.size()));
+  std::vector<DMatch> top_matches(good_matches.begin(), good_matches.begin() + min<int>(30,good_matches.size()));
 
   std::vector<Point2f> mpts_1, mpts_2;
-  matches2points(top10_matches, kpts_1, kpts_2, mpts_1, mpts_2);
+  matches2points(top_matches, kpts_1, kpts_2, mpts_1, mpts_2);
   Mat trf;
   if( find_perspective_transform(mpts_1, mpts_2, trf) ) {
       Mat warped;
@@ -298,7 +312,7 @@ int main(int argc, const char ** argv)
 
   size_t chunk_size = 300;
   for( size_t i = 0; i < good_matches.size() ; i += chunk_size ) {
-      std::vector<DMatch> top_matches(good_matches.begin() + i, good_matches.begin() + min<int>(i + chunk_size, good_matches.size()));
+      top_matches.assign(good_matches.begin() + i, good_matches.begin() + min<int>(i + chunk_size, good_matches.size()));
       Mat outimg;
       drawMatches(im2, kpts_2, im1, kpts_1, top_matches, outimg, Scalar::all(-1), Scalar::all(-1));
       imshow("matches outliers removed", outimg);
