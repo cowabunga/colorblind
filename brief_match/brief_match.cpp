@@ -16,8 +16,11 @@ using namespace cv;
 using namespace std;
 
 //Copy (x,y) location of descriptor matches found from KeyPoint data structures into Point2f vectors
-static void matches2points(const vector<DMatch>& matches, const vector<KeyPoint>& kpts_train,
-                    const vector<KeyPoint>& kpts_query, vector<Point2f>& pts_train, vector<Point2f>& pts_query)
+static void matches2points(const std::vector<DMatch>& matches,
+    const std::vector<KeyPoint>& kpts_train,
+    const std::vector<KeyPoint>& kpts_query,
+    std::vector<Point2f>& pts_train,
+    std::vector<Point2f>& pts_query)
 {
   pts_train.clear();
   pts_query.clear();
@@ -32,8 +35,12 @@ static void matches2points(const vector<DMatch>& matches, const vector<KeyPoint>
 
 }
 
-static double match(const vector<KeyPoint>& /*kpts_train*/, const vector<KeyPoint>& /*kpts_query*/, DescriptorMatcher& matcher,
-            const Mat& train, const Mat& query, vector<DMatch>& matches)
+static double match(const std::vector<KeyPoint>& /*kpts_train*/,
+                    const std::vector<KeyPoint>& /*kpts_query*/,
+                    DescriptorMatcher& matcher,
+                    const Mat& train,
+                    const Mat& query,
+                    std::vector<DMatch>& matches)
 {
 
   double t = (double)getTickCount();
@@ -41,10 +48,58 @@ static double match(const vector<KeyPoint>& /*kpts_train*/, const vector<KeyPoin
   return ((double)getTickCount() - t) / getTickFrequency();
 }
 
-static void compute_distance_historgam(const vector<DMatch>& matches, const int histogramSize)
+
+static void plot_hist_image(std::vector<DMatch> data
+        , size_t columns
+        , size_t scale = 1) {
+    std::sort(data.begin(), data.end());
+
+    int minValue = data.front().distance;
+    int maxValue = data.back().distance;
+
+
+
+    std::vector<int> histData(columns, 0);
+
+    int histDataMax = 0;
+    for (std::vector<DMatch>::const_iterator it = data.begin()
+            ; it != data.end(); ++it) {
+        size_t rangeNum =
+            (it->distance - minValue) * (columns - 1) / (maxValue - minValue);
+
+        ++histData[rangeNum];
+        if (histData[rangeNum] > histDataMax) {
+            histDataMax = histData[rangeNum];
+        }
+    }
+
+
+
+    cv::Mat histImg =
+            cv::Mat::zeros(columns * scale, columns * scale, CV_8UC1);
+
+    for(size_t i = 0; i < columns; ++i) {
+        int columnSize = columns * scale * histData[i] / histDataMax;
+
+        cv::Point leftBottom(i * scale, histImg.size().height);
+        cv::Point rightTop((i + 1) * scale, histImg.size().height - columnSize);
+
+        cv::rectangle(histImg, leftBottom, rightTop
+                , cv::Scalar::all(255), CV_FILLED);
+    }
+
+
+
+    cv::namedWindow("Histogram of all matches", 1);
+    cv::imshow("Histogram of all matches", histImg);
+}
+
+
+static void compute_distance_historgam(const std::vector<DMatch>& matches,
+                                       const int histogramSize)
 {
-  vector<DMatch>::const_iterator iMin = std::min_element(matches.begin(), matches.end());
-  vector<DMatch>::const_iterator iMax = std::max_element(matches.begin(), matches.end());
+  std::vector<DMatch>::const_iterator iMin = std::min_element(matches.begin(), matches.end());
+  std::vector<DMatch>::const_iterator iMax = std::max_element(matches.begin(), matches.end());
   if (iMin == matches.end() || iMax == matches.end())
       return;
   double minDist = iMin->distance;
@@ -56,7 +111,7 @@ static void compute_distance_historgam(const vector<DMatch>& matches, const int 
   std::cout << "Max distance: " << maxDist << std::endl;
   std::cout << "Histogram distance step: " << distStep << std::endl;
 
-  vector<int> counts(histogramSize, 0);
+  std::vector<int> counts(histogramSize, 0);
   for (vector<DMatch>::const_iterator it = matches.begin(); it < matches.end(); ++it)
       counts[min(int((it->distance - minDist)/distStep), histogramSize-1)] += 1;
   for (int i=0; i < histogramSize; ++i)
@@ -73,49 +128,40 @@ static void filter_matches(const std::vector<DMatch>& matches, double max_distan
           filtered.push_back(*it);
 }
 
-// see perspectiveTransform(pnts1, );
-static void apply_perspective_trf(const Mat& mat, const Point2f& in, Point2f& out)
-{
-    double scale = mat.at<float>(2,0)*in.x + mat.at<float>(2,1)*in.y + mat.at<float>(2,2);
-    if (fabs(scale) < 1e-32)
-        out.x = out.y = 0.0;
-    else {
-        out.x = (mat.at<float>(0,0)*in.x + mat.at<float>(0,1)*in.y + mat.at<float>(0,2))/scale;
-        out.y = (mat.at<float>(1,0)*in.x + mat.at<float>(1,1)*in.y + mat.at<float>(1,2))/scale;
+static void apply_perspective_trf(const Mat& trf, const Point2f& in, Point2f& out) {
+    double scale = trf.at<float>(2,0)*in.x + trf.at<float>(2,1)*in.y + trf.at<float>(2,2);
+    if (scale > 1e-30) {
+        out.x = trf.at<float>(0,0)*in.x + trf.at<float>(0,1)*in.y + trf.at<float>(0,2);
+        out.y = trf.at<float>(1,0)*in.x + trf.at<float>(1,1)*in.y + trf.at<float>(1,2);
     }
+    else
+        out.x = out.y = 0;
 }
 
-static double calc_trf_error(const vector<Point2f>& pnts1, const vector<Point2f>& pnts2, const Mat& trf )
-{
-    size_t size = pnts1.size();
-    Point2f p;
-    double error = 0;
+static double calc_perspective_trf_error( const std::vector<Point2f>& pnts1,
+        const std::vector<Point2f>& pnts2, Mat& trf ) {
+    Point2f pnt;
+    double err = 0.0;
     float dx, dy;
-    Mat iTrf;
-    cv::invert(trf, iTrf);
-    for (size_t i = 0; i < size; ++i) {
-        apply_perspective_trf(trf, pnts1[i], p);
-        dx = pnts2[i].x - p.x;
-        dy = pnts2[i].y - p.y;
-        error += log(1.0+sqrt(dx*dx + dy*dy));
-
-        apply_perspective_trf(iTrf, pnts2[i], p);
-        dx = pnts1[i].x - p.x;
-        dy = pnts1[i].y - p.y;
-        error += log(1.0+sqrt(dx*dx + dy*dy));
+    for (size_t i = 0; i < pnts1.size(); ++i) {
+        apply_perspective_trf(trf, pnts1[i], pnt);
+        dx = pnt.x-pnts2[i].x;
+        dy = pnt.y-pnts2[i].y;
+        err += log(1.0 + sqrt(dx*dx + dy*dy));
     }
-    return error;
+    return err;
 }
 
-static bool find_perspective_transform(const vector<Point2f>& pnts1, const vector<Point2f>& pnts2, Mat& best_trf )
+static bool find_perspective_transform(const std::vector<Point2f>& pnts1,
+        const std::vector<Point2f>& pnts2, Mat& best_trf )
 {
     size_t size = pnts1.size();
     assert(size == pnts2.size());
     if (size > 30)
         std::cout << "WARNING: too many points to find perspective transform with brute force: " << size << std::endl;
 
-    double err, min_err = -1;
-    Mat trf;
+    double min_err = -1, err;
+    Mat trf, iTrf;
 
     Point2f from[4], to[4];
     size_t i, j, k, l;
@@ -132,19 +178,23 @@ static bool find_perspective_transform(const vector<Point2f>& pnts1, const vecto
                     from[3] = pnts1[l];
                     to[3] = pnts2[l];
                     trf = cv::getPerspectiveTransform(from, to);
-                    err = calc_trf_error(pnts1, pnts2, trf);
-                    std::cout << "err = " << err << std::endl;
-                    if (min_err < 0 || err < min_err) {
-                        min_err = err;
-                        best_trf = trf;
+                    if (trf.total() == 9) {
+                        invert(trf, iTrf);
+                        err = calc_perspective_trf_error(pnts1, pnts2, trf) + 
+                              calc_perspective_trf_error(pnts2, pnts1, iTrf);
+                        if (min_err < 0 || err < min_err) {
+                            min_err = err;
+                            best_trf = trf;
+                            std::cout << "Min perspective error: " << err << std::endl;
+                        }
                     }
+
                 }
             }
         }
     }
     if (min_err < 0)
         return false;
-    std::cout << "min error: " << min_err << std::endl;
     return true;
 }
 
@@ -170,7 +220,7 @@ int main(int argc, const char ** argv)
     return 1;
   }
 
-  vector<KeyPoint> kpts_1, kpts_2;
+  std::vector<KeyPoint> kpts_1, kpts_2;
   double time_step1 = (double)getTickCount();
   FastFeatureDetector detector1(50);
   detector1.detect(im1, kpts_1);
@@ -182,7 +232,7 @@ int main(int argc, const char ** argv)
        << "found " << kpts_2.size() << " keypoints in " << im2_name << std::endl
        << "took " << time_step1 << " seconds." << std::endl << std::endl;
 
-  vector<KeyPoint> kpts_21, kpts_22;
+  std::vector<KeyPoint> kpts_21, kpts_22;
   /*double t2 = (double)getTickCount();
   SimpleBlobDetector detector2;
   detector2.detect(im1, kpts_21);
@@ -214,7 +264,7 @@ int main(int argc, const char ** argv)
   //Do matching using features2d
   std::cout << "matching with BruteForceMatcher<Hamming>...";
   BFMatcher matcher(NORM_HAMMING);
-  vector<DMatch> matches;
+  std::vector<DMatch> matches;
   double time_step3 = match(kpts_1, kpts_2, matcher, desc_1, desc_2, matches);
   std::cout << " took " << time_step3 << " seconds" << std::endl << std::endl;
 
@@ -223,14 +273,17 @@ int main(int argc, const char ** argv)
   // Compute and print distance historgam
   compute_distance_historgam(matches, 20);
 
+  // Plot all matches histogram
+  plot_hist_image(matches, 100, 5);
+
   // Get only relatively good matches
   std::vector<DMatch> good_matches;
-  filter_matches(matches, 0.10*maxDistance, good_matches);
+  filter_matches(matches, 0.1*maxDistance, good_matches);
 
   std::sort(good_matches.begin(), good_matches.end());
-  vector<DMatch> top10_matches(good_matches.begin(), good_matches.begin() + min<int>(30,good_matches.size()));
+  std::vector<DMatch> top10_matches(good_matches.begin(), good_matches.begin() + min<int>(30,good_matches.size()));
 
-  vector<Point2f> mpts_1, mpts_2;
+  std::vector<Point2f> mpts_1, mpts_2;
   matches2points(top10_matches, kpts_1, kpts_2, mpts_1, mpts_2);
   Mat trf;
   if( find_perspective_transform(mpts_1, mpts_2, trf) ) {
@@ -239,14 +292,13 @@ int main(int argc, const char ** argv)
       warpPerspective(im1, warped, trf, im2.size());
       imshow("perspective", warped);
       absdiff(im2,warped,diff);
-      imshow("perspective_diff", diff);
+      imshow("perspective diff", diff);
       waitKey();
   }
 
-  vector<char> outlier_mask;
   size_t chunk_size = 300;
   for( size_t i = 0; i < good_matches.size() ; i += chunk_size ) {
-      vector<DMatch> top_matches(good_matches.begin() + i, good_matches.begin() + min<int>(i + chunk_size, good_matches.size()));
+      std::vector<DMatch> top_matches(good_matches.begin() + i, good_matches.begin() + min<int>(i + chunk_size, good_matches.size()));
       Mat outimg;
       drawMatches(im2, kpts_2, im1, kpts_1, top_matches, outimg, Scalar::all(-1), Scalar::all(-1));
       imshow("matches outliers removed", outimg);
@@ -263,7 +315,7 @@ int main(int argc, const char ** argv)
               warpPerspective(im1, warped, homographyTrf, im2.size());
               imshow("homography", warped);
               absdiff(im2,warped,diff);
-              imshow("homography_diff", diff);
+              imshow("homography diff", diff);
               waitKey();
           }
       }
