@@ -1,6 +1,6 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
-#include <opencv2/imgproc/imgproc_c.h>
+#include <opencv2/imgproc/imgproc.hpp>
 
 #include <cstdio>
 
@@ -15,21 +15,37 @@ int main(int argc, char** argv) {
     }
 
 
-    IplImage * source = cvLoadImage(argv[1]);
+    printf("Loading %s image...", argv[1]);
+    cv::Mat source = cv::imread(argv[1]);
+
+    if (source.data == NULL) {
+        printf(" error: Can't read image!\n");
+        return 1;
+    } else {
+        printf(" ok\n");
+    }
+
+
 
     size_t width = atoi(argv[3]);
     size_t height = atoi(argv[4]);
-
-    IplImage * resultImage =
-        cvCreateImage(cvSize(width, height), source->depth, source->nChannels);
+    cv::Mat resizedSource;
 
 
-    cvResize(source, resultImage);
 
-    cvSaveImage(argv[2], resultImage);
+    printf("Resizing image to %d x %d...\n", width, height);
+    cv::resize(source, resizedSource, cv::Size(width, height));
 
-    cvReleaseImage(&source);
-    cvReleaseImage(&resultImage);
+
+
+    printf("Saving image to %s...", argv[2]);
+    imwrite(argv[2], resizedSource);
+    printf(" ok\n");
+
+
+
+    source.release();
+    resizedSource.release();
 
     return 0;
 }
