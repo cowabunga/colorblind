@@ -19,10 +19,17 @@ typedef cv::Mat_<float> Matf;
 
 
 cv::Point2f meanOfVectors(const std::vector<cv::Point2f> & vecs);
+
 Matf varianceOfVectors(const std::vector<cv::Point2f> & vecs);
+
 float det(const Matf & mat);
 
-std::vector<size_t> getBestVecIndexes(std::vector<cv::Point2f>);
+float computeDensity(float, const cv::Point2f &, const Matf &
+        , const cv::Point2f);
+
+std::vector<size_t> getBestVecIndexes(const std::vector<cv::Point2f> &);
+
+
 
 
 
