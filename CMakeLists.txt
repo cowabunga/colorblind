@@ -453,6 +453,7 @@ add_subdirectory(brief_match/utests/ut_imdb)
 add_subdirectory(brief_match/utests/ut_anomaly)
 add_subdirectory(brief_match/video_processor)
 add_subdirectory(brief_match)
+add_subdirectory(brief_match/ut_anomaly)
 add_subdirectory(tools/resizer)
 add_subdirectory(tools/combiner)
 
