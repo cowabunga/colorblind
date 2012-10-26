@@ -11,7 +11,6 @@
 
 
 
-
 typedef cv::Mat_<float> Matf;
 
 
@@ -94,15 +93,21 @@ float det(const Matf & mat) {
 }
 
 
+
+
 float computeDensity(float factor, const cv::Point2f & mean
         , const Matf & ivar, const cv::Point2f vec) {
     cv::Point2f norm = vec - mean;
+
 
 
     // compute matrix multiplication
     // vec(1, 2) * mat(2, 2) * vec(2, 1)
     float x = norm.x * ivar(0, 0) + norm.y * ivar(1, 0);
     float y = norm.x * ivar(0, 1) + norm.y * ivar(1, 1);
+
+
+
     float power = -0.5;
     power *= x * norm.x + y * norm.y;
 
@@ -129,13 +134,14 @@ std::vector<size_t> getBestVecIndexes(const std::vector<cv::Point2f> & vecs) {
 
     float factor =  pow(2*pi, -float(vecs.size())/2) * sigma;
 
-    var.inv();
+    Matf ivar(2, 2, float(0));
+    cv::invert(var, ivar);
 
 
 
 
     for (size_t i = 0; i < vecs.size(); ++i) {
-        if (computeDensity(factor, mean, var, vecs[i]) < sigma) {
+        if (computeDensity(factor, mean, ivar, vecs[i]) < sigma) {
             goodIndexes.push_back(i);
         }
     }
