@@ -7,6 +7,7 @@
 void test_meanOfVectors();
 void test_varianceOfVectors();
 void test_TDistribution_calcMean();
+void test_TDistribution_calcVariance();
 void test_computeDensity();
 
 void assertEqual(const cv::Point2f &, const cv::Point2f &, float);
@@ -158,6 +159,25 @@ void test_TDistribution_calcMean() {
 }
 
 
+void test_TDistribution_calcVariance() {
+    typedef cv::Vec2f P;
+
+    TDistribution distribution;
+
+    {
+        P a[10] = {
+            P(8.710867, 11.523142), P(8.097444, 6.503540),
+            P(13.866495, 8.814358), P(13.889156, 7.560562),
+            P(8.442556, 5.409871), P(14.403722, 11.449097),
+            P(1.426250, 11.697567), P(12.359932, 12.446966),
+            P(14.937492, 5.528084), P(12.733541, 20.837173)
+        };
+
+        std::vector<P> vecs(a, a + 10);
+
+        Matf var = distribution.calcVariance(vecs);
+    }
+}
 
 
 void test_varianceOfVectors() {
@@ -225,7 +245,6 @@ void test_computeDensity() {
 
 
 
-
 int main() {
     test_meanOfVectors();
 
@@ -235,6 +254,8 @@ int main() {
 
 
     test_TDistribution_calcMean();
+
+    test_TDistribution_calcVariance();
 
     return 0;
 }
