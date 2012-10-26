@@ -133,6 +133,36 @@ void test_varianceOfVectors() {
     }
 }
 
+void test_computeDensity() {
+    typedef cv::Point2f P;
+
+    {
+        P a[10] = {
+            P(8.710867, 11.523142), P(8.097444, 6.503540),
+            P(13.866495, 8.814358), P(13.889156, 7.560562),
+            P(8.442556, 5.409871), P(14.403722, 11.449097),
+            P(1.426250, 11.697567), P(12.359932, 12.446966),
+            P(14.937492, 5.528084), P(12.733541, 20.837173)
+        };
+
+        std::vector<P> vecs(a, a + 10);
+
+
+        Matf var = varianceOfVectors(vecs);
+        P mean = meanOfVectors(vecs);
+
+        Matf ivar;
+
+        cv::invert(var, ivar);
+
+        float density = computeDensity(1, mean, ivar, P(10, 10));
+
+        assertTrue(std::fabs(density - 0.97503) < 0.0001);
+    }
+
+}
+
+
 
 
 
@@ -140,6 +170,8 @@ int main() {
     test_meanOfVectors();
 
     test_varianceOfVectors();
+
+    test_computeDensity();
 
     return 0;
 }
