@@ -37,7 +37,17 @@ class TDistribution {
     }
 
     template <typename TVec>
-    TVec calcMean(const std::vector<TVec> &);
+    TVec calcMean(const std::vector<TVec> &) const;
+
+    template <typename TVec>
+    cv::Mat_<typename TVec::value_type> calcVariance(
+            const std::vector<TVec> &) const;
+
+
+
+    private:
+    template <typename TVec>
+    TVec vecDiff(TVec a, TVec b) const;
 
 };
 
@@ -45,20 +55,20 @@ class TDistribution {
 
 
 template <typename TVec>
-TVec TDistribution::calcMean(const std::vector<TVec> & evec) {
+TVec TDistribution::calcMean(const std::vector<TVec> & evec) const {
     TVec mean;
 
 
     for (typename std::vector<TVec>::const_iterator example = evec.begin()
             ; example != evec.end(); ++example) {
-        for (int feature = 0; feature < example->rows; ++feature) {
+        for (int feature = 0; feature < TVec::rows; ++feature) {
             mean[feature] += (*example)[feature];
         }
     }
 
 
     if (!evec.empty()) {
-        for (int feature = 0; feature < evec[0].rows; ++feature) {
+        for (int feature = 0; feature < TVec::rows; ++feature) {
             mean[feature] /= evec.size();
         }
     }
@@ -69,7 +79,35 @@ TVec TDistribution::calcMean(const std::vector<TVec> & evec) {
 
 
 
+// TODO
+template <typename TVec>
+cv::Mat_<typename TVec::value_type> TDistribution::calcVariance(
+        const std::vector<TVec> & vec) const {
+    cv::Mat_<typename TVec::value_type> var(TVec::rows, TVec::rows
+            , typename TVec::value_type(0));
 
+    TVec mean = calcMean(vec);
+
+
+    TVec v = vecDiff(vec[0], mean);
+
+
+
+    return var;
+}
+
+
+
+template <typename TVec>
+TVec TDistribution::vecDiff(TVec a, TVec b) const {
+    TVec result;
+
+    for (int i = 0; i < a.rows; ++i) {
+        result[i] = a[i] - b[i];
+    }
+
+    return result;
+}
 
 
 cv::Point2f meanOfVectors(const std::vector<cv::Point2f> & vecs) {
