@@ -6,11 +6,36 @@
 
 void test_meanOfVectors();
 void test_varianceOfVectors();
+void test_TDistribution_calcMean();
+void test_computeDensity();
 
 void assertEqual(const cv::Point2f &, const cv::Point2f &, float);
 void assertEqual(const Matf &, const Matf &, float);
 void assertTrue(bool);
 
+
+template <typename A, int B>
+void assertEqual(const cv::Vec<A, B> & v, const cv::Vec<A, B> q
+        , double EPSILON = 0.0001) {
+    for (int i = 0; i < B; ++i) {
+        if (std::abs(v[i] - q[i]) > EPSILON) {
+            assertionFailed(v, q);
+        }
+    }
+}
+
+
+template <typename A, int B>
+std::ostream & operator << (std::ostream & out, const cv::Vec<A, B> & vec) {
+    out << "[ ";
+    for (int x = 0; x < B; ++x) {
+        out << vec[x] << " ";
+    }
+
+    out << "]";
+
+    return out;
+}
 
 
 template <typename T>
@@ -100,6 +125,41 @@ void test_meanOfVectors() {
 
 
 
+void test_TDistribution_calcMean() {
+    typedef cv::Vec2f P;
+
+    TDistribution distribution;
+
+
+    {
+        P a[10] = {
+            P(8.710867, 11.523142), P(8.097444, 6.503540),
+            P(13.866495, 8.814358), P(13.889156, 7.560562),
+            P(8.442556, 5.409871), P(14.403722, 11.449097),
+            P(1.426250, 11.697567), P(12.359932, 12.446966),
+            P(14.937492, 5.528084), P(12.733541, 20.837173)
+        };
+
+        std::vector<P> vecs(a, a + 10);
+
+        P mean = distribution.calcMean(vecs);
+
+        assertEqual(mean, P(10.8867, 10.177));
+    }
+
+    {
+        std::vector<P> vecs;
+
+        P mean = distribution.calcMean(vecs);
+
+        assertEqual(mean, P(0, 0));
+    }
+
+}
+
+
+
+
 void test_varianceOfVectors() {
     typedef cv::Point2f P;
 
@@ -172,6 +232,9 @@ int main() {
     test_varianceOfVectors();
 
     test_computeDensity();
+
+
+    test_TDistribution_calcMean();
 
     return 0;
 }

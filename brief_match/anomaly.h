@@ -31,6 +31,44 @@ std::vector<size_t> getBestVecIndexes(const std::vector<cv::Point2f> &);
 
 
 
+class TDistribution {
+    public:
+    TDistribution() {
+    }
+
+    template <typename TVec>
+    TVec calcMean(const std::vector<TVec> &);
+
+};
+
+
+
+
+template <typename TVec>
+TVec TDistribution::calcMean(const std::vector<TVec> & evec) {
+    TVec mean;
+
+
+    for (typename std::vector<TVec>::const_iterator example = evec.begin()
+            ; example != evec.end(); ++example) {
+        for (int feature = 0; feature < example->rows; ++feature) {
+            mean[feature] += (*example)[feature];
+        }
+    }
+
+
+    if (!evec.empty()) {
+        for (int feature = 0; feature < evec[0].rows; ++feature) {
+            mean[feature] /= evec.size();
+        }
+    }
+
+
+    return mean;
+}
+
+
+
 
 
 
