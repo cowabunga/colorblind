@@ -383,38 +383,32 @@ static cv::Mat find_fundamental_transform(
 {
   // Convert keypoints into Point2f
   std::vector<cv::Point2f> points1, points2;
-  for (std::vector<cv::DMatch>::
-      const_iterator it= matches.begin();
+  for (std::vector<cv::DMatch>:: const_iterator it= matches.begin();
       it!= matches.end(); ++it) {
     // Get the position of left keypoints
-    float x= keypoints1[it->queryIdx].pt.x;
-    float y= keypoints1[it->queryIdx].pt.y;
+    float x = keypoints1[it->queryIdx].pt.x;
+    float y = keypoints1[it->queryIdx].pt.y;
     points1.push_back(cv::Point2f(x,y));
     // Get the position of right keypoints
-    x= keypoints2[it->trainIdx].pt.x;
-    y= keypoints2[it->trainIdx].pt.y;
+    x = keypoints2[it->trainIdx].pt.x;
+    y = keypoints2[it->trainIdx].pt.y;
     points2.push_back(cv::Point2f(x,y));
   }
   // Compute F matrix using RANSAC
   std::vector<uchar> inliers(points1.size(),0);
-  cv::Mat fundemental= cv::findFundamentalMat(
-      cv::Mat(points1),cv::Mat(points2), // matching points
+  cv::Mat fundemental = cv::findFundamentalMat(
+      cv::Mat(points1), cv::Mat(points2), // matching points
       inliers,
       // match status (inlier or outlier)
       CV_FM_RANSAC, // RANSAC method
       distance, // distance to epipolar line
       confidence); // confidence probability
   // extract the surviving (inliers) matches
-  std::vector<uchar>::const_iterator
-    itIn= inliers.begin();
-  std::vector<cv::DMatch>::const_iterator
-    itM= matches.begin();
-  // for all matches
-  for ( ;itIn!= inliers.end(); ++itIn, ++itM) {
-    if (*itIn) { // it is a valid match
+  std::vector<uchar>::const_iterator itIn = inliers.begin();
+  std::vector<cv::DMatch>::const_iterator itM = matches.begin();
+  for ( ; itIn != inliers.end(); ++itIn, ++itM)
+    if (*itIn) // it is a valid match
       outMatches.push_back(*itM);
-    }
-  }
   if (refineF) {
     // The F matrix will be recomputed with
     // all accepted matches
@@ -422,9 +416,8 @@ static cv::Mat find_fundamental_transform(
     // for final F computation
     points1.clear();
     points2.clear();
-    for (std::vector<cv::DMatch>::
-        const_iterator it= outMatches.begin();
-        it!= outMatches.end(); ++it) {
+    for (std::vector<cv::DMatch>:: const_iterator it= outMatches.begin();
+        it != outMatches.end(); ++it) {
       // Get the position of left keypoints 
       float x= keypoints1[it->queryIdx].pt.x;
       float y= keypoints1[it->queryIdx].pt.y;
@@ -435,7 +428,7 @@ static cv::Mat find_fundamental_transform(
       points2.push_back(cv::Point2f(x,y));
     }
     // Compute 8-point F from all accepted matches
-    fundemental= cv::findFundamentalMat(
+    fundemental = cv::findFundamentalMat(
         cv::Mat(points1),cv::Mat(points2), // matches
         CV_FM_8POINT); // 8-point method
   }
