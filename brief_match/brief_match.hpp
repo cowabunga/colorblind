@@ -1,8 +1,6 @@
 #ifndef __OPENCV_BRIEF_MATCH_HPP__
 #define __OPENCV_BRIEF_MATCH_HPP__
 
-#include "opencv2/core/core.hpp"
-
 class TimeMeter
 {    
     private:
