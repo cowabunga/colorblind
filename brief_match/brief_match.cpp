@@ -7,6 +7,7 @@
 #include "opencv2/features2d/features2d.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/highgui/highgui.hpp"
+#include "brief_match.hpp"
 
 #include <vector>
 #include <iostream>
@@ -14,6 +15,27 @@
 #include <memory>
 
 using namespace cv;
+
+TimeMeter::TimeMeter( bool start_now, bool _verbos ):
+    startTime(-1.0), totalTime(0.0), verbos(_verbos)
+{
+  if (start_now)
+    start();
+}
+
+void TimeMeter::start()
+{
+  startTime = (double)getTickCount();
+}
+
+double TimeMeter::stop(const char* measure_name)
+{
+  double ms = 1000*((double)getTickCount() - startTime) / getTickFrequency();
+  totalTime += ms;
+  if (verbos)
+    std::cerr << measure_name << " took " << ms << " ms." << std::endl;
+  return ms;
+}
 
 //Copy (x,y) location of descriptor matches found from KeyPoint data structures into Point2f vectors
 static void matches2points(
@@ -35,24 +57,9 @@ static void matches2points(
 
 }
 
-static double match(
-    const std::vector<KeyPoint>& /*kpts_train*/,
-    const std::vector<KeyPoint>& /*kpts_query*/,
-    DescriptorMatcher& matcher,
-    const Mat& train,
-    const Mat& query,
-    std::vector<DMatch>& matches)
-{
-
-  double t = (double)getTickCount();
-  matcher.match(query, train, matches); //Using features2d
-  return ((double)getTickCount() - t) / getTickFrequency();
-}
-
-
 static void plot_hist_image(std::vector<DMatch> data,
-    size_t columns,
-    size_t scale = 1)
+                            size_t columns,
+                            size_t scale = 1)
 {
   std::sort(data.begin(), data.end());
 
@@ -126,7 +133,8 @@ static void filter_matches(const std::vector<DMatch>& matches, double max_distan
       filtered.push_back(*it);
 }
 
-static void apply_perspective_trf(const Mat& trf, const Point2f& in, Point2d& out) {
+static void apply_perspective_trf(const Mat& trf, const Point2f& in, Point2d& out)
+{
   double scale = trf.at<double>(2,0)*in.x +
                  trf.at<double>(2,1)*in.y +
                  trf.at<double>(2,2);
@@ -206,7 +214,7 @@ static bool find_perspective_transform(const std::vector<Point2f>& pnts1,
             if (min_err < 0 || err < min_err) {
               min_err = err;
               best_trf = trf;
-              std::cout << "Min perspective error: " << err << std::endl;
+              //std::cout << "Min perspective error: " << err << std::endl;
             }
           }
 
@@ -231,6 +239,7 @@ int main(int argc, const char ** argv)
   int descSize = 32;
   BriefDescriptorExtractor desc_extractor(descSize);
   double maxDistance = descSize*8;
+  TimeMeter time_meter(false, true);
 
   Mat im1 = imread(im1_name, CV_LOAD_IMAGE_GRAYSCALE);
   Mat im2 = imread(im2_name, CV_LOAD_IMAGE_GRAYSCALE);
@@ -242,76 +251,79 @@ int main(int argc, const char ** argv)
     return 1;
   }
 
+  time_meter.start();
   std::vector<KeyPoint> kpts_1, kpts_2;
-  double time_step1 = (double)getTickCount();
   FastFeatureDetector detector1(50);
   detector1.detect(im1, kpts_1);
   detector1.detect(im2, kpts_2);
+  time_meter.stop("Feature detection");
 
-  time_step1 = ((double)getTickCount() - time_step1) / getTickFrequency();
-  std::cout << "corners:" << std::endl
-    << "found " << kpts_1.size() << " keypoints in " << im1_name << std::endl
-    << "found " << kpts_2.size() << " keypoints in " << im2_name << std::endl
-    << "took " << time_step1 << " seconds." << std::endl << std::endl;
+  std::cout << "found " << kpts_1.size() << " keypoints in " << im1_name << std::endl
+            << "found " << kpts_2.size() << " keypoints in " << im2_name << std::endl << std::endl;
 
-  std::vector<KeyPoint> kpts_21, kpts_22;
-  /*double t2 = (double)getTickCount();
+  /*time_meter.start();
+    std::vector<KeyPoint> kpts_21, kpts_22;
     SimpleBlobDetector detector2;
     detector2.detect(im1, kpts_21);
     detector2.detect(im2, kpts_22);
 
-    t2 = ((double)getTickCount() - t2) / getTickFrequency();
-    std::cout << "BLOBS" << std::endl
-    << "found " << kpts_21.size() << " keypoints in " << im1_name << std::endl
-    << "found " << kpts_22.size() << " keypoints in " << im2_name << std::endl
-    << "took " << t2 << " seconds." << std::endl << std::endl;
+    time_meter.stop("simple blob detection");
+    std::cout << "found " << kpts_21.size() << " keypoints in " << im1_name << std::endl
+              << "found " << kpts_22.size() << " keypoints in " << im2_name << std::endl << std::endl;
 
     kpts_1.insert(kpts_1.end(), kpts_21.begin(), kpts_21.end());
     kpts_2.insert(kpts_2.end(), kpts_22.begin(), kpts_22.end());
 
-    std::cout << "TOTAL" << std::endl << "found " << kpts_1.size() << " keypoints in " << im1_name << std::endl
-    << "found " << kpts_2.size() << " keypoints in " << im2_name << std::endl
-    << "took " << time_step1 + t2 << " seconds." << std::endl << std::endl;*/
+    std::cout << "TOTAL" << std::endl
+              << "found " << kpts_1.size() << " keypoints in " << im1_name << std::endl
+              << "found " << kpts_2.size() << " keypoints in " << im2_name << std::endl; */
 
+  time_meter.start();
   Mat desc_1, desc_2;
-  std::cout << "computing descriptors...";
-  double time_step2 = (double)getTickCount();
-
   desc_extractor.compute(im1, kpts_1, desc_1);
   desc_extractor.compute(im2, kpts_2, desc_2);
-
-  time_step2 = ((double)getTickCount() - time_step2) / getTickFrequency();
-  std::cout << " took " << time_step2 << " seconds" << std::endl << std::endl;
+  time_meter.stop("Descriptors computation");
 
   //Do matching using features2d
-  std::cout << "matching with BruteForceMatcher<Hamming>...";
+  time_meter.start();
   BFMatcher matcher(NORM_HAMMING);
   std::vector<DMatch> matches;
-  double time_step3 = match(kpts_1, kpts_2, matcher, desc_1, desc_2, matches);
-  std::cout << " took " << time_step3 << " seconds" << std::endl << std::endl;
-
-  std::cout << "All steps took " << time_step1 + time_step2 + time_step3
-            << " seconds" << std::endl << std::endl;
+  matcher.match(desc_2, desc_1, matches);
+  time_meter.stop("matching with BruteForceMatcher<Hamming>");
 
   // Compute and print distance historgam
-  compute_distance_historgam(matches, 20);
+  //compute_distance_historgam(matches, 20);
 
   // Plot all matches histogram
   plot_hist_image(matches, 100, 5);
 
   // Get only relatively good matches
+  time_meter.start();
   std::vector<DMatch> good_matches;
   filter_matches(matches, 0.1*maxDistance, good_matches);
+  time_meter.stop("Good matches filtering");
 
+  time_meter.start();
   std::sort(good_matches.begin(), good_matches.end());
+  time_meter.stop("Matches sort");
+
+  time_meter.start();
   std::vector<DMatch> top_matches(
       good_matches.begin(),
       good_matches.begin() + min<int>(30,good_matches.size()));
+  time_meter.stop("getting top matches");
 
+  time_meter.start();
   std::vector<Point2f> mpts_1, mpts_2;
   matches2points(top_matches, kpts_1, kpts_2, mpts_1, mpts_2);
+  time_meter.stop("matches to points conversion");
+
+  time_meter.start();
   Mat trf;
-  if( find_perspective_transform(mpts_1, mpts_2, trf) ) {
+  bool found = find_perspective_transform(mpts_1, mpts_2, trf);
+  time_meter.stop("perspective transform search");
+
+  if (found) {
     Mat warped;
     Mat diff;
     warpPerspective(im1, warped, trf, im2.size());
@@ -333,8 +345,11 @@ int main(int argc, const char ** argv)
     waitKey();
 
     if (top_matches.size() > 3) {
+      time_meter.start();
       matches2points(top_matches, kpts_1, kpts_2, mpts_1, mpts_2);
       Mat homographyTrf = findHomography(mpts_1, mpts_2, RANSAC, 1);
+      time_meter.stop("homography search");
+
       if (homographyTrf.total() < 2)
         std::cout << "could not find a homography" << std::endl;
       else {
@@ -349,6 +364,9 @@ int main(int argc, const char ** argv)
     }
     break;
   }
+
+  std::cout << "All steps took " << time_meter.getTotalTime()
+            << " ms" << std::endl << std::endl;
 
   return 0;
 }
