@@ -7,6 +7,7 @@
 #include "opencv2/features2d/features2d.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/highgui/highgui.hpp"
+#include "opencv2/nonfree/features2d.hpp"
 #include "brief_match.hpp"
 
 #include <vector>
@@ -15,6 +16,8 @@
 #include <memory>
 
 using namespace cv;
+
+const double MaxMatchDistance = 0.11; // max distance is 1
 
 TimeMeter::TimeMeter( bool start_now, bool _verbos ):
     startTime(-1.0), totalTime(0.0), verbos(_verbos)
@@ -97,6 +100,7 @@ static void plot_hist_image(std::vector<DMatch> data,
   cv::imshow("Histogram of all matches", histImg);
 }
 
+/*
 static void compute_distance_historgam(
     const std::vector<DMatch>& matches,
     const int histogramSize)
@@ -123,6 +127,7 @@ static void compute_distance_historgam(
     std::cout << minDist + (i+0.5)*distStep << ": "<< counts[i] << std::endl;
   std::cout << std::endl;
 }
+*/
 
 static void filter_matches(const std::vector<DMatch>& matches, double max_distance,
     std::vector<DMatch>& filtered)
@@ -227,17 +232,226 @@ static bool find_perspective_transform(const std::vector<Point2f>& pnts1,
   return true;
 }
 
+// Clear matches for which NN ratio is > than threshold
+// return the number of removed points
+// (corresponding entries being cleared,
+// i.e. size will be 0)
+static int remove_ambiguous_matches(
+    std::vector<std::vector<cv::DMatch> >& matches,
+    double ratio)
+{
+  int removed = 0;
+
+  for (std::vector<std::vector<cv::DMatch> >::iterator it = matches.begin();
+      it != matches.end(); ++it) {
+    if (it->size() > 1) {
+      if ((*it)[1].distance < 1e-32 || (*it)[0].distance / (*it)[1].distance > ratio) {
+        it->clear(); // remove match
+        removed++;
+      }
+    } else { // does not have 2 neighbours
+      //it->clear(); // remove match
+      //removed++;
+    }
+  }
+  return removed;
+}
+
+// Insert symmetrical matches in symMatches vector
+static void get_symmetrical_matches(
+    const std::vector<std::vector<cv::DMatch> >& matches1,
+    const std::vector<std::vector<cv::DMatch> >& matches2,
+    std::vector<cv::DMatch>& symMatches)
+{
+  // for all matches image 1 -> image 2
+  for (std::vector<std::vector<cv::DMatch> >::
+      const_iterator matchIterator1= matches1.begin();
+      matchIterator1 != matches1.end(); ++matchIterator1) {
+    // ignore deleted matches
+    if (matchIterator1->size() < 1)
+      continue;
+    // for all matches image 2 -> image 1
+    for (std::vector<std::vector<cv::DMatch> >::
+        const_iterator matchIterator2= matches2.begin();
+        matchIterator2!= matches2.end();
+        ++matchIterator2) {
+      // ignore deleted matches
+      if (matchIterator2->size() < 1)
+        continue;
+      // Match symmetry test
+      if ((*matchIterator1)[0].queryIdx ==
+          (*matchIterator2)[0].trainIdx &&
+          (*matchIterator2)[0].queryIdx ==
+          (*matchIterator1)[0].trainIdx) {
+        // add symmetrical match
+        symMatches.push_back(
+            cv::DMatch((*matchIterator1)[0].queryIdx,
+              (*matchIterator1)[0].trainIdx,
+              (*matchIterator1)[0].distance));
+        break; // next match in image 1 -> image 2
+      }
+    }
+  }
+}
+
+static void detect_features(
+    const Mat& im1,
+    const Mat& im2,
+    const char* im1_name,
+    const char* im2_name,
+    TimeMeter& time_meter,
+    std::vector<KeyPoint>& kpts_1,
+    std::vector<KeyPoint>& kpts_2 )
+{
+  time_meter.start();
+  FastFeatureDetector detector1(50);
+  //SiftFeatureDetector detector1;
+  detector1.detect(im1, kpts_1);
+  detector1.detect(im2, kpts_2);
+  time_meter.stop("Feature detection");
+
+  std::cout << "found " << kpts_1.size() << " keypoints in " << im1_name << std::endl
+            << "found " << kpts_2.size() << " keypoints in " << im2_name << std::endl << std::endl;
+  /*
+  time_meter.start();
+  std::vector<KeyPoint> kpts_21, kpts_22;
+  SimpleBlobDetector detector2;
+  detector2.detect(im1, kpts_21);
+  detector2.detect(im2, kpts_22);
+  time_meter.stop("simple blob detection");
+
+  std::cout << "found " << kpts_21.size() << " keypoints in " << im1_name << std::endl
+            << "found " << kpts_22.size() << " keypoints in " << im2_name << std::endl << std::endl;
+
+  kpts_1.insert(kpts_1.end(), kpts_21.begin(), kpts_21.end());
+  kpts_2.insert(kpts_2.end(), kpts_22.begin(), kpts_22.end());
+
+  std::cout << "found " << kpts_1.size() << " keypoints total in " << im1_name << std::endl
+            << "found " << kpts_2.size() << " keypoints total in " << im2_name << std::endl << std::endl;
+  */
+}
+
+static void match_features(
+  const Mat& desc_1,
+  const Mat& desc_2,
+  TimeMeter& time_meter,
+  std::vector<DMatch>& matches)
+{
+  //Do matching using features2d
+  time_meter.start();
+  BFMatcher matcher(NORM_HAMMING);
+  //FlannBasedMatcher matcher;
+
+  std::vector<std::vector<DMatch> > matches12;
+  std::vector<std::vector<DMatch> > matches21;
+  matcher.knnMatch(desc_1, desc_2, matches12, 2);
+  matcher.knnMatch(desc_2, desc_1, matches21, 2);
+  std::cout << matches12.size() << " matches from 1st to 2nd image found" << std::endl;
+  std::cout << matches21.size() << " matches from 2nd to 1st image found" << std::endl;
+  time_meter.stop("matching");
+
+  time_meter.start();
+  int removed1 = remove_ambiguous_matches(matches12, 0.8);
+  int removed2 = remove_ambiguous_matches(matches21, 0.8);
+  std::cout << removed1 << " ambiguous matches removed" << std::endl;
+  std::cout << removed2 << " ambiguous matches removed" << std::endl;
+  time_meter.stop("removing ambiguous");
+
+  //time_meter.start();
+  //get_symmetrical_matches(matches21, matches12, matches);
+  //time_meter.stop("getting symmetrical matches");
+  for (std::vector<std::vector<cv::DMatch> >::const_iterator it = matches21.begin();
+      it!= matches21.end(); ++it)
+    if (it->size() > 1)
+      matches.push_back((*it)[0]);
+
+  //matcher.match(desc_2, desc_1, matches);
+  //time_meter.stop("matching key points");
+  std::cout << matches.size() << " matches found." << std::endl;
+}
+
+// Identify good matches using RANSAC
+// Return fundemental matrix
+static cv::Mat find_fundamental_transform(
+    const std::vector<cv::DMatch>& matches,
+    const std::vector<cv::KeyPoint>& keypoints1,
+    const std::vector<cv::KeyPoint>& keypoints2,
+    double distance,
+    double confidence,
+    bool refineF,
+    std::vector<cv::DMatch>& outMatches)
+{
+  // Convert keypoints into Point2f
+  std::vector<cv::Point2f> points1, points2;
+  for (std::vector<cv::DMatch>::
+      const_iterator it= matches.begin();
+      it!= matches.end(); ++it) {
+    // Get the position of left keypoints
+    float x= keypoints1[it->queryIdx].pt.x;
+    float y= keypoints1[it->queryIdx].pt.y;
+    points1.push_back(cv::Point2f(x,y));
+    // Get the position of right keypoints
+    x= keypoints2[it->trainIdx].pt.x;
+    y= keypoints2[it->trainIdx].pt.y;
+    points2.push_back(cv::Point2f(x,y));
+  }
+  // Compute F matrix using RANSAC
+  std::vector<uchar> inliers(points1.size(),0);
+  cv::Mat fundemental= cv::findFundamentalMat(
+      cv::Mat(points1),cv::Mat(points2), // matching points
+      inliers,
+      // match status (inlier or outlier)
+      CV_FM_RANSAC, // RANSAC method
+      distance, // distance to epipolar line
+      confidence); // confidence probability
+  // extract the surviving (inliers) matches
+  std::vector<uchar>::const_iterator
+    itIn= inliers.begin();
+  std::vector<cv::DMatch>::const_iterator
+    itM= matches.begin();
+  // for all matches
+  for ( ;itIn!= inliers.end(); ++itIn, ++itM) {
+    if (*itIn) { // it is a valid match
+      outMatches.push_back(*itM);
+    }
+  }
+  if (refineF) {
+    // The F matrix will be recomputed with
+    // all accepted matches
+    // Convert keypoints into Point2f
+    // for final F computation
+    points1.clear();
+    points2.clear();
+    for (std::vector<cv::DMatch>::
+        const_iterator it= outMatches.begin();
+        it!= outMatches.end(); ++it) {
+      // Get the position of left keypoints 
+      float x= keypoints1[it->queryIdx].pt.x;
+      float y= keypoints1[it->queryIdx].pt.y;
+      points1.push_back(cv::Point2f(x,y));
+      // Get the position of right keypoints
+      x= keypoints2[it->trainIdx].pt.x;
+      y= keypoints2[it->trainIdx].pt.y;
+      points2.push_back(cv::Point2f(x,y));
+    }
+    // Compute 8-point F from all accepted matches
+    fundemental= cv::findFundamentalMat(
+        cv::Mat(points1),cv::Mat(points2), // matches
+        CV_FM_8POINT); // 8-point method
+  }
+  return fundemental;
+}
+
 int main(int argc, const char ** argv)
 {
   if (argc < 3) {
     std::cerr << "Usage: " << argv[0] << " image1 image2" << std::endl;
     exit(3);
   }
-  string im1_name = argv[1];
-  string im2_name = argv[2];
+  const char* im1_name = argv[1];
+  const char* im2_name = argv[2];
 
   int descSize = 32;
-  BriefDescriptorExtractor desc_extractor(descSize);
   double maxDistance = descSize*8;
   TimeMeter time_meter(false, true);
 
@@ -246,50 +460,33 @@ int main(int argc, const char ** argv)
 
   if (im1.empty() || im2.empty())
   {
-    std::cout << "could not load image: " << (im1.empty()?im1_name:im2_name)
-              << std::endl;
+    std::cout << "could not load image: "
+              << (im1.empty()?im1_name:im2_name) << std::endl;
     return 1;
   }
 
+  // Increase contrast
   time_meter.start();
+  Mat im1_eq_hist, im2_eq_hist;
+  equalizeHist(im1, im1_eq_hist);
+  equalizeHist(im2, im2_eq_hist);
+  im1 = im1_eq_hist;
+  im2 = im2_eq_hist;
+  time_meter.stop("Increasing contrast");
+
   std::vector<KeyPoint> kpts_1, kpts_2;
-  FastFeatureDetector detector1(50);
-  detector1.detect(im1, kpts_1);
-  detector1.detect(im2, kpts_2);
-  time_meter.stop("Feature detection");
-
-  std::cout << "found " << kpts_1.size() << " keypoints in " << im1_name << std::endl
-            << "found " << kpts_2.size() << " keypoints in " << im2_name << std::endl << std::endl;
-
-  /*time_meter.start();
-    std::vector<KeyPoint> kpts_21, kpts_22;
-    SimpleBlobDetector detector2;
-    detector2.detect(im1, kpts_21);
-    detector2.detect(im2, kpts_22);
-
-    time_meter.stop("simple blob detection");
-    std::cout << "found " << kpts_21.size() << " keypoints in " << im1_name << std::endl
-              << "found " << kpts_22.size() << " keypoints in " << im2_name << std::endl << std::endl;
-
-    kpts_1.insert(kpts_1.end(), kpts_21.begin(), kpts_21.end());
-    kpts_2.insert(kpts_2.end(), kpts_22.begin(), kpts_22.end());
-
-    std::cout << "TOTAL" << std::endl
-              << "found " << kpts_1.size() << " keypoints in " << im1_name << std::endl
-              << "found " << kpts_2.size() << " keypoints in " << im2_name << std::endl; */
+  detect_features(im1, im2, im1_name, im2_name, time_meter, kpts_1, kpts_2); 
 
   time_meter.start();
   Mat desc_1, desc_2;
+  BriefDescriptorExtractor desc_extractor(descSize);
+  //SurfDescriptorExtractor desc_extractor(50.0);
   desc_extractor.compute(im1, kpts_1, desc_1);
   desc_extractor.compute(im2, kpts_2, desc_2);
   time_meter.stop("Descriptors computation");
 
-  //Do matching using features2d
-  time_meter.start();
-  BFMatcher matcher(NORM_HAMMING);
   std::vector<DMatch> matches;
-  matcher.match(desc_2, desc_1, matches);
-  time_meter.stop("matching with BruteForceMatcher<Hamming>");
+  match_features(desc_1, desc_2, time_meter, matches);
 
   // Compute and print distance historgam
   //compute_distance_historgam(matches, 20);
@@ -300,8 +497,26 @@ int main(int argc, const char ** argv)
   // Get only relatively good matches
   time_meter.start();
   std::vector<DMatch> good_matches;
-  filter_matches(matches, 0.1*maxDistance, good_matches);
+  filter_matches(matches, MaxMatchDistance*maxDistance, good_matches);
   time_meter.stop("Good matches filtering");
+  std::cout << good_matches.size() << " good matches found." << std::endl;
+
+  time_meter.start();
+  std::vector<DMatch> accepted_matches;
+  Mat fundamental = find_fundamental_transform(good_matches, kpts_1, kpts_2,
+                                       20.0, 0.8, true,
+                                       accepted_matches);
+  time_meter.stop("fundamental transform search");
+  std::cout << accepted_matches.size() << " matches accepted" << std::endl;
+
+  if (fundamental.total() > 1) {
+    Mat outimg;
+    drawMatches(im2, kpts_2, im1, kpts_1, accepted_matches, outimg,
+                Scalar::all(-1), Scalar::all(-1));
+    imshow("accepted matches", outimg);
+    waitKey();
+  }
+  //good_matches = accepted_matches;
 
   time_meter.start();
   std::sort(good_matches.begin(), good_matches.end());
@@ -335,7 +550,7 @@ int main(int argc, const char ** argv)
 
   size_t chunk_size = 300;
   for( size_t i = 0; i < good_matches.size() ; i += chunk_size ) {
-    top_matches.assign(
+    std::vector<DMatch> top_matches(
         good_matches.begin() + i,
         good_matches.begin() + min<int>(i + chunk_size, good_matches.size()));
     Mat outimg;
@@ -346,6 +561,7 @@ int main(int argc, const char ** argv)
 
     if (top_matches.size() > 3) {
       time_meter.start();
+      std::vector<Point2f> mpts_1, mpts_2;
       matches2points(top_matches, kpts_1, kpts_2, mpts_1, mpts_2);
       Mat homographyTrf = findHomography(mpts_1, mpts_2, RANSAC, 1);
       time_meter.stop("homography search");
@@ -353,8 +569,7 @@ int main(int argc, const char ** argv)
       if (homographyTrf.total() < 2)
         std::cout << "could not find a homography" << std::endl;
       else {
-        Mat warped;
-        Mat diff;
+        Mat warped, diff;
         warpPerspective(im1, warped, homographyTrf, im2.size());
         imshow("homography", warped);
         absdiff(im2,warped,diff);
