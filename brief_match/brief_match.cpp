@@ -394,6 +394,9 @@ static cv::Mat find_fundamental_transform(
     y = keypoints2[it->trainIdx].pt.y;
     points2.push_back(cv::Point2f(x,y));
   }
+  // TODO use the following func instead:
+  //matches2points(matches, keypoints1, keypoints2, points1, points2);
+
   // Compute F matrix using RANSAC
   std::vector<uchar> inliers(points1.size(),0);
   cv::Mat fundemental = cv::findFundamentalMat(
@@ -403,12 +406,14 @@ static cv::Mat find_fundamental_transform(
       CV_FM_RANSAC, // RANSAC method
       distance, // distance to epipolar line
       confidence); // confidence probability
+
   // extract the surviving (inliers) matches
   std::vector<uchar>::const_iterator itIn = inliers.begin();
   std::vector<cv::DMatch>::const_iterator itM = matches.begin();
   for ( ; itIn != inliers.end(); ++itIn, ++itM)
     if (*itIn) // it is a valid match
       outMatches.push_back(*itM);
+
   if (refineF) {
     // The F matrix will be recomputed with
     // all accepted matches
@@ -416,23 +421,52 @@ static cv::Mat find_fundamental_transform(
     // for final F computation
     points1.clear();
     points2.clear();
-    for (std::vector<cv::DMatch>:: const_iterator it= outMatches.begin();
+    // TODO use matches2points()
+    for (std::vector<cv::DMatch>:: const_iterator it = outMatches.begin();
         it != outMatches.end(); ++it) {
       // Get the position of left keypoints 
-      float x= keypoints1[it->queryIdx].pt.x;
-      float y= keypoints1[it->queryIdx].pt.y;
+      float x = keypoints1[it->queryIdx].pt.x;
+      float y = keypoints1[it->queryIdx].pt.y;
       points1.push_back(cv::Point2f(x,y));
       // Get the position of right keypoints
-      x= keypoints2[it->trainIdx].pt.x;
-      y= keypoints2[it->trainIdx].pt.y;
+      x = keypoints2[it->trainIdx].pt.x;
+      y = keypoints2[it->trainIdx].pt.y;
       points2.push_back(cv::Point2f(x,y));
     }
     // Compute 8-point F from all accepted matches
     fundemental = cv::findFundamentalMat(
-        cv::Mat(points1),cv::Mat(points2), // matches
+        cv::Mat(points1), cv::Mat(points2), // matches
         CV_FM_8POINT); // 8-point method
   }
   return fundemental;
+}
+
+static void draw_epipolar_lines(const Mat& im1,
+    const std::vector<Point2f>& mpts_1,
+    const std::vector<Point2f>& mpts_2,
+    const Mat& fundamental2to1,
+    Mat& draw)
+{
+  RNG& rng = theRNG();
+
+  cvtColor( im1, draw, CV_GRAY2BGR );
+
+  Mat norm1, pnt2;
+  Point2f pnt1;
+  std::vector<float> pnt2_h(3);
+  for (int i = 0; i < mpts_2.size(); ++i) {
+    pnt2_h[0] = mpts_2[i].x;
+    pnt2_h[1] = mpts_2[i].y;
+    pnt2_h[2] = 1.0;
+    Mat(pnt2_h).convertTo(pnt2, fundamental2to1.type());
+    norm1 = fundamental2to1 * pnt2;
+    pnt1.x = mpts_1[i].x + norm1.at<float>(1,0);
+    pnt1.y = mpts_1[i].y - norm1.at<float>(0,0);
+
+    Scalar color = Scalar( rng(256), rng(256), rng(256) );
+    cv::line(draw, mpts_1[i], pnt1, color, 1, CV_AA, 0);
+    cv::circle(draw, mpts_1[i], 3, color, 1, CV_AA, 0);
+  }
 }
 
 int main(int argc, const char ** argv)
@@ -505,8 +539,15 @@ int main(int argc, const char ** argv)
   if (fundamental.total() > 1) {
     Mat outimg;
     drawMatches(im2, kpts_2, im1, kpts_1, accepted_matches, outimg,
-                Scalar::all(-1), Scalar::all(-1));
+                Scalar::all(-1), Scalar::all(-1), std::vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
     imshow("accepted matches", outimg);
+
+    Mat draw;
+    std::vector<Point2f> mpts_1, mpts_2;
+    matches2points(accepted_matches, kpts_1, kpts_2, mpts_1, mpts_2);
+    draw_epipolar_lines(im1, mpts_1, mpts_2, fundamental, draw);
+    imshow("epipolar lines", draw);
+
     waitKey();
   }
   //good_matches = accepted_matches;
