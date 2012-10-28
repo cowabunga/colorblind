@@ -2,12 +2,6 @@
  * Brief matcher
  *      Author: L
  */
-#include "opencv2/core/core.hpp"
-#include "opencv2/calib3d/calib3d.hpp"
-#include "opencv2/features2d/features2d.hpp"
-#include "opencv2/imgproc/imgproc.hpp"
-#include "opencv2/highgui/highgui.hpp"
-#include "opencv2/nonfree/features2d.hpp"
 #include "brief_match.hpp"
 
 #include <vector>
@@ -15,89 +9,100 @@
 #include <algorithm>
 #include <memory>
 
-using namespace cv;
+#include "opencv2/core/core.hpp"
+#include "opencv2/calib3d/calib3d.hpp"
+#include "opencv2/features2d/features2d.hpp"
+#include "opencv2/imgproc/imgproc.hpp"
+#include "opencv2/highgui/highgui.hpp"
+#include "opencv2/nonfree/features2d.hpp"
 
-const double MaxMatchDistance = 0.11; // max distance is 1
+const double kMaxMatchDistance = 0.11;  // max distance is 1
 
-TimeMeter::TimeMeter( bool start_now, bool _verbos ):
-    startTime(-1.0), totalTime(0.0), verbos(_verbos)
-{
+namespace {
+  const int kMaxPointsForBFTransform = 30;
+}
+
+TimeMeter::TimeMeter(bool start_now, bool verbos)
+    :start_time_(-1.) 
+    ,total_time_(0.)
+    ,verbos_(verbos) {
   if (start_now)
-    start();
+    Start();
 }
 
-void TimeMeter::start()
-{
-  startTime = (double)getTickCount();
+void TimeMeter::Start() {
+  start_time_ = const_cast<double>(getTickCount());
 }
 
-double TimeMeter::stop(const char* measure_name)
-{
-  double ms = 1000*((double)getTickCount() - startTime) / getTickFrequency();
-  totalTime += ms;
-  if (verbos)
+double TimeMeter::Stop(const char* measure_name) {
+  double ms = 1000 * (const_cast<double>(getTickCount()) - start_time_)
+                  / getTickFrequency();
+  total_time_ += ms;
+  if (verbos_)
     std::cerr << measure_name << " took " << ms << " ms." << std::endl;
   return ms;
 }
 
+
+namespace {
+
 //Copy (x,y) location of descriptor matches found from KeyPoint data structures into Point2f vectors
-static void matches2points(
+void Matches2Points(
     const std::vector<DMatch>& matches,
     const std::vector<KeyPoint>& kpts_train,
     const std::vector<KeyPoint>& kpts_query,
-    std::vector<Point2f>& pts_train,
-    std::vector<Point2f>& pts_query)
-{
+    std::vector<Point2f>* pts_train,
+    std::vector<Point2f>* pts_query) {
   pts_train.clear();
   pts_query.clear();
   pts_train.reserve(matches.size());
   pts_query.reserve(matches.size());
   for (size_t i = 0; i < matches.size(); ++i) {
     const DMatch& match = matches[i];
-    pts_query.push_back(kpts_query[match.queryIdx].pt);
-    pts_train.push_back(kpts_train[match.trainIdx].pt);
+    pts_query->push_back(kpts_query.at(match.queryIdx).pt);
+    pts_train->push_back(kpts_train.at(match.trainIdx).pt);
   }
 
 }
 
-static void plot_hist_image(std::vector<DMatch> data,
-                            size_t columns,
-                            size_t scale = 1)
-{
+void PlotHistImage(const std::vector<DMatch>& data,
+                   const size_t columns,
+                   const size_t scale = 1) {
   std::sort(data.begin(), data.end());
 
-  int minValue = data.front().distance;
-  int maxValue = data.back().distance;
+  int min_value = data.front().distance;
+  int max_value = data.back().distance;
 
-  std::vector<int> histData(columns, 0);
+  std::vector<int> hist_data(columns, 0);
 
-  int histDataMax = 0;
-  for (std::vector<DMatch>::const_iterator it = data.begin()
-      ; it != data.end(); ++it) {
-    size_t rangeNum =
-      (it->distance - minValue) * (columns - 1) / (maxValue - minValue);
+  int hist_data_max = 0;
+  for (std::vector<DMatch>::const_iterator it = data.begin();
+       it != data.end();
+       ++it) {
+    size_t range_num =
+      (it->distance - min_value) * (columns - 1) / (max_value - min_value);
 
-    ++histData[rangeNum];
-    if (histData[rangeNum] > histDataMax) {
-      histDataMax = histData[rangeNum];
+    ++hist_data[range_num];
+    if (hist_data.at(range_num) > hist_data_max) {
+      hist_data_max = hist_data[range_num];
     }
   }
 
-  cv::Mat histImg =
+  cv::Mat hist_img =
     cv::Mat::zeros(columns * scale, columns * scale, CV_8UC1);
 
   for (size_t i = 0; i < columns; ++i) {
-    int columnSize = columns * scale * histData[i] / histDataMax;
+    int column_size = columns * scale * hist_data.at(i) / hist_data_max;
 
-    cv::Point leftBottom(i * scale, histImg.size().height);
-    cv::Point rightTop((i + 1) * scale, histImg.size().height - columnSize);
+    cv::Point left_bottom(i * scale, hist_img.size().height);
+    cv::Point right_top((i + 1) * scale, hist_img.size().height - column_size);
 
-    cv::rectangle(histImg, leftBottom, rightTop,
+    cv::rectangle(hist_img, left_bottom, right_top,
                   cv::Scalar::all(255), CV_FILLED);
   }
 
   cv::namedWindow("Histogram of all matches", 1);
-  cv::imshow("Histogram of all matches", histImg);
+  cv::imshow("Histogram of all matches", hist_img);
 }
 
 /*
@@ -129,20 +134,23 @@ static void compute_distance_historgam(
 }
 */
 
-static void filter_matches(const std::vector<DMatch>& matches, double max_distance,
-    std::vector<DMatch>& filtered)
-{
+void FilterMatches(const std::vector<DMatch>& matches,
+                   const double max_distance,
+                   std::vector<DMatch>* filtered) {
   filtered.clear();
-  for (vector<DMatch>::const_iterator it = matches.begin(); it < matches.end(); ++it)
+  for (vector<DMatch>::const_iterator it = matches.begin();
+       it < matches.end();
+       ++it) {
     if (it->distance < max_distance)
-      filtered.push_back(*it);
+      filtered->push_back(*it);
+  }
 }
 
-static void apply_perspective_trf(const Mat& trf, const Point2f& in, Point2d& out)
-{
+Point2d ApplyPerspectiveTransform(const Mat& trf, const Point2f& in) {
   double scale = trf.at<double>(2,0)*in.x +
                  trf.at<double>(2,1)*in.y +
                  trf.at<double>(2,2);
+  Point2f out;
   if (scale > 1e-32) {
     out.x = (trf.at<double>(0,0)*in.x +
              trf.at<double>(0,1)*in.y +
@@ -150,65 +158,68 @@ static void apply_perspective_trf(const Mat& trf, const Point2f& in, Point2d& ou
     out.y = (trf.at<double>(1,0)*in.x +
              trf.at<double>(1,1)*in.y +
              trf.at<double>(1,2)) / scale;
-  }
-  else
+  } else {
     out.x = out.y = 0;
+  }
+  return out;
 }
 
-static double calc_perspective_trf_error( const std::vector<Point2f>& pnts1,
-    const std::vector<Point2f>& pnts2, Mat& trf )
-{
-  size_t size = pnts1.size();
-  if (size == 0)
-    return 0.0;
-  Point2d pnt;
-  double err = 0.0, variance = 0.0;
-  double dx, dy;
-  std::vector<double> errors(size);
-  for (size_t i = 0; i < size; ++i) {
-    apply_perspective_trf(trf, pnts1[i], pnt);
-    dx = pnt.x-pnts2[i].x;
-    dy = pnt.y-pnts2[i].y;
-    err = sqrt(dx*dx + dy*dy);
-    variance += err*err;
+double CalcPerspectiveTransformError(const std::vector<Point2f>& pnts1,
+                                     const std::vector<Point2f>& pnts2,
+                                     const Mat& trf) {
+  if (pnts1.empty())
+    return 0.;
+  const size_t points_count = pnts1.size();
+  double variance = 0.;
+  std::vector<double> errors(pnts1.size());
+  for (size_t i = 0; i < points_count; ++i) {
+    Point2d pnt = ApplyPerspectiveTransform(trf, pnts1[i]);
+    double dx = pnt.x-pnts2.at(i).x;
+    double dy = pnt.y-pnts2.at(i).y;
+    double err = std::sqrt(dx * dx + dy * dy);
+    variance += err * err;
     errors[i] = err;
   }
-  variance /= size;
-  double sigma = sqrt(variance);
+  variance /= points_count;
+  double sigma = std::sqrt(variance);
 
   std::sort(errors.begin(), errors.end());
 
   double total_err = 0.0;
   for (std::vector<double>::iterator it = errors.begin();
-       it != errors.end() && *it <= sigma; ++it)
+       it != errors.end() && *it <= sigma;
+       ++it)
     total_err += *it;
   return total_err;
 }
 
-static bool find_perspective_transform(const std::vector<Point2f>& pnts1,
-    const std::vector<Point2f>& pnts2, Mat& best_trf )
-{
-  size_t size = pnts1.size();
-  assert(size == pnts2.size());
-  if (size > 30)
-    std::cout << "WARNING: too many points to find perspective transform with brute force: "
-              << size << std::endl;
+bool FindPerspectiveTransform(const std::vector<Point2f>& pnts1,
+                              const std::vector<Point2f>& pnts2,
+                              Mat* best_trf) {
+  const size_t points_count = pnts1.size();
+  assert(points_count == pnts2.size());
+  if (points_count > kMaxPointsForBFTransform) {
+    std::cout << "WARNING: too many points to find perspective transform with"
+                  "brute force: " << points_count << std::endl;
+  }
+
+  // вот здесь я задолбался.
 
   double min_err = -1, err;
   Mat trf, iTrf;
 
   Point2f from[4], to[4];
   size_t i, j, k, l;
-  for (i = 0; i < size; ++i) {
+  for (i = 0; i < points_count; ++i) {
     from[0] = pnts1[i];
     to[0] = pnts2[i];
-    for (j = i+1; j < size; ++j) {
+    for (j = i+1; j < points_count; ++j) {
       from[1] = pnts1[j];
       to[1] = pnts2[j];
-      for (k = j+1; k < size; ++k) {
+      for (k = j+1; k < points_count; ++k) {
         from[2] = pnts1[k];
         to[2] = pnts2[k];
-        for (l = k+1; l < size; ++l) {
+        for (l = k+1; l < points_count; ++l) {
           from[3] = pnts1[l];
           to[3] = pnts2[l];
           trf = cv::getPerspectiveTransform(from, to);
@@ -424,7 +435,8 @@ static cv::Mat find_fundamental_transform(
     // TODO use matches2points()
     for (std::vector<cv::DMatch>:: const_iterator it = outMatches.begin();
         it != outMatches.end(); ++it) {
-      // Get the position of left keypoints 
+      // Get the position of left keypoints
+
       float x = keypoints1[it->queryIdx].pt.x;
       float y = keypoints1[it->queryIdx].pt.y;
       points1.push_back(cv::Point2f(x,y));
@@ -524,7 +536,7 @@ int main(int argc, const char ** argv)
   // Get only relatively good matches
   time_meter.start();
   std::vector<DMatch> good_matches;
-  filter_matches(matches, MaxMatchDistance*maxDistance, good_matches);
+  filter_matches(matches, kMaxMatchDistance * maxDistance, good_matches);
   time_meter.stop("Good matches filtering");
   std::cout << good_matches.size() << " good matches found." << std::endl;
 
