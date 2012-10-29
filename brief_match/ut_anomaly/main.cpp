@@ -176,6 +176,14 @@ void test_TDistribution_calcVariance() {
         std::vector<P> vecs(a, a + 10);
 
         Matf var = distribution.calcVariance(vecs);
+
+        Matf expect(2, 2);
+        expect(0, 0) = 16.02417;
+        expect(0, 1) = 0.13414;
+        expect(1, 0) = 0.13414;
+        expect(1, 1) = 19.10693;
+
+        assertEqual(var, expect);
     }
 }
 
@@ -256,6 +264,7 @@ int main() {
     test_TDistribution_calcMean();
 
     test_TDistribution_calcVariance();
+
 
     return 0;
 }
