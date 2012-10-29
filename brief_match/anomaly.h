@@ -46,13 +46,6 @@ class TDistribution {
 
 
 
-    private:
-    template <typename TVec>
-    TVec vecDiff(const TVec &, const TVec &) const;
-
-    template <typename TVec>
-    cv::Mat_<typename TVec::value_type> vecMult(
-            const TVec &, const TVec &) const;
 };
 
 
@@ -93,9 +86,13 @@ cv::Mat_<typename TVec::value_type> TDistribution::calcVariance(
 
     for (typename std::vector<TVec>::const_iterator it = vec.begin()
             ; it != vec.end(); ++it) {
-        TVec normalized = vecDiff(*it, mean);
+        TVec normalized = *it - mean;
 
-        variance += vecMult(normalized, normalized);
+        cv::Mat_<typename TVec::value_type> normalizedT;
+        cv::transpose(normalized, normalizedT);
+
+        variance +=
+                cv::Mat_<typename TVec::value_type>(normalized) * normalizedT;
     }
 
     if (!vec.empty()) {
@@ -106,34 +103,6 @@ cv::Mat_<typename TVec::value_type> TDistribution::calcVariance(
     return variance;
 }
 
-
-
-template <typename TVec>
-TVec TDistribution::vecDiff(const TVec & a, const TVec & b) const {
-    TVec result;
-
-    for (int i = 0; i < a.rows; ++i) {
-        result[i] = a[i] - b[i];
-    }
-
-    return result;
-}
-
-
-
-template <typename TVec>
-cv::Mat_<typename TVec::value_type> TDistribution::vecMult(
-        const TVec & a, const TVec & b) const {
-    cv::Mat_<typename TVec::value_type> mat(TVec::rows, TVec::rows);
-
-    for (int row = 0; row < mat.rows; ++row) {
-        for (int col = 0; col < mat.cols; ++col) {
-            mat(row, col) = a[row] * b[col];
-        }
-    }
-
-    return mat;
-}
 
 
 
