@@ -266,5 +266,21 @@ int main() {
     test_TDistribution_calcVariance();
 
 
+    cv::Vec2f v(1, 4);
+
+    Matf m(v);
+
+    cv::Vec2f q(m);
+
+    std::cout << v << std::endl;
+    std::cout << m << std::endl;
+    std::cout << m.rows << " " << m.cols << std::endl;
+    std::cout << q - v<< std::endl;
+    Matf d;
+    cv::transpose(v, d);
+
+    std::cout << d << std::endl;
+    std::cout << Matf(v) * d << std::endl;
+
     return 0;
 }
