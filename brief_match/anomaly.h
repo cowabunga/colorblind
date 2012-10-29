@@ -9,6 +9,7 @@
 #include <cmath>
 
 
+#include <iostream>
 
 typedef cv::Mat_<float> Matf;
 
@@ -31,9 +32,8 @@ std::vector<size_t> getBestVecIndexes(const std::vector<cv::Point2f> &);
 
 
 
-
-class TDistribution {
-    public:
+// http://en.wikipedia.org/wiki/Multivariate_normal_distribution
+struct TDistribution {
     TDistribution() {
     }
 
@@ -44,8 +44,11 @@ class TDistribution {
     cv::Mat_<typename TVec::value_type> calcVariance(
             const std::vector<TVec> &) const;
 
-
-
+    template <typename TVec>
+    typename TVec::value_type calcDensity(const TVec & vec
+            , const TVec & mean
+            , const cv::Mat_<typename TVec::value_type> & invertedVariance
+            , const typename TVec::value_type & sigma);
 };
 
 
@@ -78,14 +81,14 @@ TVec TDistribution::calcMean(const std::vector<TVec> & evec) const {
 
 template <typename TVec>
 cv::Mat_<typename TVec::value_type> TDistribution::calcVariance(
-        const std::vector<TVec> & vec) const {
+        const std::vector<TVec> & evec) const {
     cv::Mat_<typename TVec::value_type> variance(TVec::rows, TVec::rows
             , typename TVec::value_type(0));
 
-    TVec mean = calcMean(vec);
+    TVec mean = calcMean(evec);
 
-    for (typename std::vector<TVec>::const_iterator it = vec.begin()
-            ; it != vec.end(); ++it) {
+    for (typename std::vector<TVec>::const_iterator it = evec.begin()
+            ; it != evec.end(); ++it) {
         TVec normalized = *it - mean;
 
         cv::Mat_<typename TVec::value_type> normalizedT;
@@ -95,13 +98,43 @@ cv::Mat_<typename TVec::value_type> TDistribution::calcVariance(
                 cv::Mat_<typename TVec::value_type>(normalized) * normalizedT;
     }
 
-    if (!vec.empty()) {
-        variance /= vec.size();
+    if (!evec.empty()) {
+        variance /= evec.size();
     }
 
 
     return variance;
 }
+
+
+
+
+
+template <typename TVec>
+typename TVec::value_type TDistribution::calcDensity(const TVec & vec
+        , const TVec & mean
+        , const cv::Mat_<typename TVec::value_type> & invertedVariance
+        , const typename TVec::value_type & sigma) {
+    typename TVec::value_type factor =
+            sqrt(pow(2 * CV_PI, TVec::rows)) * sigma;
+
+
+    TVec normalized = vec - mean;
+    cv::Mat_<typename TVec::value_type> normalizedT;
+    cv::transpose(normalized, normalizedT);
+
+
+    normalizedT *= invertedVariance;
+    normalizedT *= cv::Mat_<typename TVec::value_type>(normalized);
+
+
+    typename TVec::value_type power = normalizedT(0, 0);
+    power /= -2;
+
+
+    return exp(power)/factor;
+}
+
 
 
 
