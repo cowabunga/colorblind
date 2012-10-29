@@ -8,6 +8,14 @@
 
 #include <cmath>
 
+struct TDistribution;
+
+template <typename TVec>
+class TAnomalyDetector;
+
+
+
+
 
 
 
@@ -28,6 +36,7 @@ struct TDistribution {
             , const TVec & mean
             , const cv::Mat_<typename TVec::value_type> & invertedVariance
             , const typename TVec::value_type & sigma);
+
 };
 
 
@@ -114,6 +123,70 @@ typename TVec::value_type TDistribution::calcDensity(const TVec & vec
     return exp(power)/factor;
 }
 
+
+
+
+
+
+
+
+
+template <typename TVec>
+class TAnomalyDetector {
+    public:
+    TAnomalyDetector() {
+    }
+
+    void init(const std::vector<TVec> & evec);
+
+    typename TVec::value_type getStdDiviation() const;
+
+    const TVec & getMean() const;
+
+    const cv::Mat_<typename TVec::value_type> & getVariance() const;
+
+
+    private:
+    TDistribution _distrib;
+    TVec _mean;
+    cv::Mat_<typename TVec::value_type> _variance;
+    cv::Mat_<typename TVec::value_type> _iVariance;
+    typename TVec::value_type _sigma;
+};
+
+
+
+template <typename TVec>
+void TAnomalyDetector<TVec>::init(const std::vector<TVec> & evec) {
+    _mean = _distrib.calcMean(evec);
+
+    _variance = _distrib.calcVariance(evec);
+
+    cv::invert(_variance, _iVariance);
+
+    _sigma = sqrt(cv::determinant(_variance));
+}
+
+
+
+template <typename TVec>
+typename TVec::value_type TAnomalyDetector<TVec>::getStdDiviation() const {
+    return _sigma;
+}
+
+
+
+template <typename TVec>
+const TVec & TAnomalyDetector<TVec>::getMean() const {
+    return _mean;
+}
+
+
+
+template <typename TVec>
+const cv::Mat_<typename TVec::value_type> & TAnomalyDetector<TVec>::getVariance() const {
+    return _variance;
+}
 
 
 
