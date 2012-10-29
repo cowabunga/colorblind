@@ -10,7 +10,6 @@
 
 
 
-
 typedef cv::Mat_<float> Matf;
 
 
@@ -21,6 +20,8 @@ cv::Point2f meanOfVectors(const std::vector<cv::Point2f> & vecs);
 
 Matf varianceOfVectors(const std::vector<cv::Point2f> & vecs);
 
+// Don't use this function
+// Use cv::determinant instead of
 float det(const Matf & mat);
 
 float computeDensity(float, const cv::Point2f &, const Matf &
@@ -47,8 +48,11 @@ class TDistribution {
 
     private:
     template <typename TVec>
-    TVec vecDiff(TVec a, TVec b) const;
+    TVec vecDiff(const TVec &, const TVec &) const;
 
+    template <typename TVec>
+    cv::Mat_<typename TVec::value_type> vecMult(
+            const TVec &, const TVec &) const;
 };
 
 
@@ -79,27 +83,33 @@ TVec TDistribution::calcMean(const std::vector<TVec> & evec) const {
 
 
 
-// TODO
 template <typename TVec>
 cv::Mat_<typename TVec::value_type> TDistribution::calcVariance(
         const std::vector<TVec> & vec) const {
-    cv::Mat_<typename TVec::value_type> var(TVec::rows, TVec::rows
+    cv::Mat_<typename TVec::value_type> variance(TVec::rows, TVec::rows
             , typename TVec::value_type(0));
 
     TVec mean = calcMean(vec);
 
+    for (typename std::vector<TVec>::const_iterator it = vec.begin()
+            ; it != vec.end(); ++it) {
+        TVec normalized = vecDiff(*it, mean);
 
-    TVec v = vecDiff(vec[0], mean);
+        variance += vecMult(normalized, normalized);
+    }
+
+    if (!vec.empty()) {
+        variance /= vec.size();
+    }
 
 
-
-    return var;
+    return variance;
 }
 
 
 
 template <typename TVec>
-TVec TDistribution::vecDiff(TVec a, TVec b) const {
+TVec TDistribution::vecDiff(const TVec & a, const TVec & b) const {
     TVec result;
 
     for (int i = 0; i < a.rows; ++i) {
@@ -108,6 +118,23 @@ TVec TDistribution::vecDiff(TVec a, TVec b) const {
 
     return result;
 }
+
+
+
+template <typename TVec>
+cv::Mat_<typename TVec::value_type> TDistribution::vecMult(
+        const TVec & a, const TVec & b) const {
+    cv::Mat_<typename TVec::value_type> mat(TVec::rows, TVec::rows);
+
+    for (int row = 0; row < mat.rows; ++row) {
+        for (int col = 0; col < mat.cols; ++col) {
+            mat(row, col) = a[row] * b[col];
+        }
+    }
+
+    return mat;
+}
+
 
 
 cv::Point2f meanOfVectors(const std::vector<cv::Point2f> & vecs) {
