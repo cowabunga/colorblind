@@ -7,9 +7,17 @@
 typedef cv::Mat_<float> Matf;
 
 
+void test_TDistribution();
 void test_TDistribution_calcMean();
 void test_TDistribution_calcVariance();
 void test_TDistribution_calcDensity();
+
+void test_TAnomalyDetector();
+
+
+
+
+
 
 void assertEqual(const Matf &, const Matf &, float);
 void assertEqual(float, float, float);
@@ -178,13 +186,43 @@ void test_TDistribution_calcDensity() {
 
 
 
+void test_TDistribution() {
+    test_TDistribution_calcMean();
+    test_TDistribution_calcVariance();
+    test_TDistribution_calcDensity();
+}
+
+
+
+
+
+void test_TAnomalyDetector() {
+    typedef cv::Vec2f P;
+
+    P a[10] = {
+        P(8.710867, 11.523142), P(8.097444, 6.503540),
+        P(13.866495, 8.814358), P(13.889156, 7.560562),
+        P(8.442556, 5.409871), P(14.403722, 11.449097),
+        P(1.426250, 11.697567), P(12.359932, 12.446966),
+        P(14.937492, 5.528084), P(12.733541, 20.837173)
+    };
+
+    TAnomalyDetector<P> detector;
+    std::vector<P> vecs(a, a + 10);
+
+
+    detector.init(vecs);
+
+    {
+
+    }
+}
+
 
 int main() {
-    test_TDistribution_calcMean();
+    test_TDistribution();
 
-    test_TDistribution_calcVariance();
-
-    test_TDistribution_calcDensity();
+    test_TAnomalyDetector();
 
     return 0;
 }
