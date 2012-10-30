@@ -32,6 +32,10 @@ struct TDistribution {
             const std::vector<TVec> &) const;
 
     template <typename TVec>
+    typename TVec::value_type calcHi(const TVec & vec, const TVec & mean
+            , const cv::Mat_<typename TVec::value_type> & invertedVariance) const;
+
+    template <typename TVec>
     typename TVec::value_type calcDensity(const TVec & vec
             , const TVec & mean
             , const cv::Mat_<typename TVec::value_type> & invertedVariance
@@ -96,6 +100,21 @@ cv::Mat_<typename TVec::value_type> TDistribution::calcVariance(
 
 
 
+template <typename TVec>
+typename TVec::value_type TDistribution::calcHi(const TVec & vec
+        , const TVec & mean
+        , const cv::Mat_<typename TVec::value_type> & invertedVariance) const {
+    TVec normalized = vec - mean;
+
+    cv::Mat_<typename TVec::value_type> normalizedT;
+    cv::transpose(normalized, normalizedT);
+
+    normalizedT *=
+            invertedVariance * cv::Mat_<typename TVec::value_type>(normalized);
+
+    return normalizedT(0, 0);
+}
+
 
 
 template <typename TVec>
@@ -106,18 +125,8 @@ typename TVec::value_type TDistribution::calcDensity(const TVec & vec
     typename TVec::value_type factor =
             sqrt(pow(2 * CV_PI, TVec::rows)) * sigma;
 
-
-    TVec normalized = vec - mean;
-    cv::Mat_<typename TVec::value_type> normalizedT;
-    cv::transpose(normalized, normalizedT);
-
-
-    normalizedT *= invertedVariance;
-    normalizedT *= cv::Mat_<typename TVec::value_type>(normalized);
-
-
-    typename TVec::value_type power = normalizedT(0, 0);
-    power /= -2;
+    typename TVec::value_type power =
+            calcHi(vec, mean, invertedVariance) / -2;
 
 
     return exp(power)/factor;
@@ -146,12 +155,19 @@ class TAnomalyDetector {
     const cv::Mat_<typename TVec::value_type> & getVariance() const;
 
 
+    std::vector<size_t> getFilteredIndexes(const std::vector<TVec> & evec
+            , typename TVec::value_type thresh) const;
+
+
     private:
     TDistribution _distrib;
     TVec _mean;
     cv::Mat_<typename TVec::value_type> _variance;
     cv::Mat_<typename TVec::value_type> _iVariance;
     typename TVec::value_type _sigma;
+
+
+    typename TVec::value_type measure(TVec a, TVec b);
 };
 
 
@@ -190,6 +206,26 @@ const cv::Mat_<typename TVec::value_type> & TAnomalyDetector<TVec>::getVariance(
 
 
 
+// http://en.wikipedia.org/wiki/Multivariate_normal_distribution#Tolerance_region
+template <typename TVec>
+std::vector<size_t> TAnomalyDetector<TVec>::getFilteredIndexes(
+        const std::vector<TVec> & evec
+        , typename TVec::value_type thresh) const {
+    std::vector<size_t> goodIndexes;
+
+
+    for (int i = 0; i < evec.size(); ++i) {
+        typename TVec::value_type hi =
+                _distrib.calcHi(evec[i], _mean, _iVariance, _sigma);
+
+        if (hi <= thresh) {
+            goodIndexes.push_back(i);
+        }
+    }
+
+
+    return goodIndexes;
+}
 
 
 #endif // COLORBLIND_BRIEF_MATCH_ANOMALY_H
