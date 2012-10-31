@@ -8,31 +8,19 @@
 
 #include <cmath>
 
+struct TDistribution;
 
-
-
-typedef cv::Mat_<float> Matf;
-
-
-
-
-
-cv::Point2f meanOfVectors(const std::vector<cv::Point2f> & vecs);
-
-Matf varianceOfVectors(const std::vector<cv::Point2f> & vecs);
-
-float det(const Matf & mat);
-
-float computeDensity(float, const cv::Point2f &, const Matf &
-        , const cv::Point2f);
-
-std::vector<size_t> getBestVecIndexes(const std::vector<cv::Point2f> &);
+template <typename TVec>
+class TAnomalyDetector;
 
 
 
 
-class TDistribution {
-    public:
+
+
+
+// http://en.wikipedia.org/wiki/Multivariate_normal_distribution
+struct TDistribution {
     TDistribution() {
     }
 
@@ -43,11 +31,15 @@ class TDistribution {
     cv::Mat_<typename TVec::value_type> calcVariance(
             const std::vector<TVec> &) const;
 
-
-
-    private:
     template <typename TVec>
-    TVec vecDiff(TVec a, TVec b) const;
+    typename TVec::value_type calcHi(const TVec & vec, const TVec & mean
+            , const cv::Mat_<typename TVec::value_type> & invertedVariance) const;
+
+    template <typename TVec>
+    typename TVec::value_type calcDensity(const TVec & vec
+            , const TVec & mean
+            , const cv::Mat_<typename TVec::value_type> & invertedVariance
+            , const typename TVec::value_type & sigma);
 
 };
 
@@ -79,145 +71,156 @@ TVec TDistribution::calcMean(const std::vector<TVec> & evec) const {
 
 
 
-// TODO
 template <typename TVec>
 cv::Mat_<typename TVec::value_type> TDistribution::calcVariance(
-        const std::vector<TVec> & vec) const {
-    cv::Mat_<typename TVec::value_type> var(TVec::rows, TVec::rows
+        const std::vector<TVec> & evec) const {
+    cv::Mat_<typename TVec::value_type> variance(TVec::rows, TVec::rows
             , typename TVec::value_type(0));
 
-    TVec mean = calcMean(vec);
+    TVec mean = calcMean(evec);
+
+    for (typename std::vector<TVec>::const_iterator it = evec.begin()
+            ; it != evec.end(); ++it) {
+        TVec normalized = *it - mean;
+
+        cv::Mat_<typename TVec::value_type> normalizedT;
+        cv::transpose(normalized, normalizedT);
+
+        variance +=
+                cv::Mat_<typename TVec::value_type>(normalized) * normalizedT;
+    }
+
+    if (!evec.empty()) {
+        variance /= evec.size();
+    }
 
 
-    TVec v = vecDiff(vec[0], mean);
-
-
-
-    return var;
+    return variance;
 }
 
 
 
 template <typename TVec>
-TVec TDistribution::vecDiff(TVec a, TVec b) const {
-    TVec result;
+typename TVec::value_type TDistribution::calcHi(const TVec & vec
+        , const TVec & mean
+        , const cv::Mat_<typename TVec::value_type> & invertedVariance) const {
+    TVec normalized = vec - mean;
 
-    for (int i = 0; i < a.rows; ++i) {
-        result[i] = a[i] - b[i];
-    }
+    cv::Mat_<typename TVec::value_type> normalizedT;
+    cv::transpose(normalized, normalizedT);
 
-    return result;
-}
+    normalizedT *=
+            invertedVariance * cv::Mat_<typename TVec::value_type>(normalized);
 
-
-cv::Point2f meanOfVectors(const std::vector<cv::Point2f> & vecs) {
-    cv::Point2f mean(0, 0);
-
-
-    for (std::vector<cv::Point2f>::const_iterator it = vecs.begin()
-            ; it != vecs.end(); ++it) {
-        mean += *it;
-    }
-
-
-    if (!vecs.empty()) {
-        mean.x /= vecs.size();
-        mean.y /= vecs.size();
-    }
-
-
-    return mean;
+    return normalizedT(0, 0);
 }
 
 
 
+template <typename TVec>
+typename TVec::value_type TDistribution::calcDensity(const TVec & vec
+        , const TVec & mean
+        , const cv::Mat_<typename TVec::value_type> & invertedVariance
+        , const typename TVec::value_type & sigma) {
+    typename TVec::value_type factor =
+            sqrt(pow(2 * CV_PI, TVec::rows)) * sigma;
+
+    typename TVec::value_type power =
+            calcHi(vec, mean, invertedVariance) / -2;
 
 
-
-Matf varianceOfVectors(const std::vector<cv::Point2f> & vecs) {
-    cv::Point2f mean = meanOfVectors(vecs);
-
-    Matf var(2, 2, float(0));
-
-
-    for (std::vector<cv::Point2f>::const_iterator it = vecs.begin()
-            ; it != vecs.end(); ++it) {
-        cv::Point2f norm = *it - mean;
-
-        var(0, 0) += norm.x * norm.x;
-        var(1, 1) += norm.y * norm.y;
-        var(1, 0) += norm.x * norm.y;
-        var(0, 1) += norm.x * norm.y;
-    }
-
-    if (!vecs.empty()) {
-        var(0, 0) /= vecs.size();
-        var(1, 0) /= vecs.size();
-        var(0, 1) /= vecs.size();
-        var(1, 1) /= vecs.size();
-    }
-
-    return var;
+    return exp(power)/factor;
 }
 
 
 
 
 
-float det(const Matf & mat) {
-    return mat(0, 0) * mat(1, 1) - mat(1, 0) * mat(0, 1);
+
+
+
+
+template <typename TVec>
+class TAnomalyDetector {
+    public:
+    TAnomalyDetector() {
+    }
+
+    void init(const std::vector<TVec> & evec);
+
+    typename TVec::value_type getStdDiviation() const;
+
+    const TVec & getMean() const;
+
+    const cv::Mat_<typename TVec::value_type> & getVariance() const;
+
+
+    std::vector<size_t> getFilteredIndexes(const std::vector<TVec> & evec
+            , typename TVec::value_type thresh) const;
+
+    typename TVec::value_type calcError(const TVec & vec) const;
+
+
+    private:
+    TDistribution _distrib;
+    TVec _mean;
+    cv::Mat_<typename TVec::value_type> _variance;
+    cv::Mat_<typename TVec::value_type> _iVariance;
+    typename TVec::value_type _sigma;
+
+
+    typename TVec::value_type measure(TVec a, TVec b);
+};
+
+
+
+template <typename TVec>
+void TAnomalyDetector<TVec>::init(const std::vector<TVec> & evec) {
+    _mean = _distrib.calcMean(evec);
+
+    _variance = _distrib.calcVariance(evec);
+
+    cv::invert(_variance, _iVariance);
+
+    _sigma = sqrt(cv::determinant(_variance));
 }
 
 
 
-
-float computeDensity(float factor, const cv::Point2f & mean
-        , const Matf & ivar, const cv::Point2f vec) {
-    cv::Point2f norm = vec - mean;
-
-
-
-    // compute matrix multiplication
-    // vec(1, 2) * mat(2, 2) * vec(2, 1)
-    float x = norm.x * ivar(0, 0) + norm.y * ivar(1, 0);
-    float y = norm.x * ivar(0, 1) + norm.y * ivar(1, 1);
-
-
-
-    float power = -0.5;
-    power *= x * norm.x + y * norm.y;
-
-
-
-    return factor * exp(power);
+template <typename TVec>
+typename TVec::value_type TAnomalyDetector<TVec>::getStdDiviation() const {
+    return _sigma;
 }
 
 
-// clean the vectors from anomaly using:
-// http://en.wikipedia.org/wiki/Multivariate_normal_distribution
-//
-// Return vector of indexes.
-std::vector<size_t> getBestVecIndexes(const std::vector<cv::Point2f> & vecs) {
-    cv::Point2f mean = meanOfVectors(vecs);
-    Matf var = varianceOfVectors(vecs);
 
-    const float pi = 3.1415926535897932;
+template <typename TVec>
+const TVec & TAnomalyDetector<TVec>::getMean() const {
+    return _mean;
+}
 
+
+
+template <typename TVec>
+const cv::Mat_<typename TVec::value_type> & TAnomalyDetector<TVec>::getVariance() const {
+    return _variance;
+}
+
+
+
+// http://en.wikipedia.org/wiki/Multivariate_normal_distribution#Tolerance_region
+template <typename TVec>
+std::vector<size_t> TAnomalyDetector<TVec>::getFilteredIndexes(
+        const std::vector<TVec> & evec
+        , typename TVec::value_type thresh) const {
     std::vector<size_t> goodIndexes;
 
 
-    float sigma = sqrt(det(var));
+    for (size_t i = 0; i < evec.size(); ++i) {
+        typename TVec::value_type hi =
+                _distrib.calcHi(evec[i], _mean, _iVariance);
 
-    float factor =  pow(2*pi, -float(vecs.size())/2) * sigma;
-
-    Matf ivar(2, 2, float(0));
-    cv::invert(var, ivar);
-
-
-
-
-    for (size_t i = 0; i < vecs.size(); ++i) {
-        if (computeDensity(factor, mean, ivar, vecs[i]) < sigma) {
+        if (hi <= thresh) {
             goodIndexes.push_back(i);
         }
     }
@@ -226,5 +229,20 @@ std::vector<size_t> getBestVecIndexes(const std::vector<cv::Point2f> & vecs) {
     return goodIndexes;
 }
 
+
+
+template <typename TVec>
+typename TVec::value_type TAnomalyDetector<TVec>::calcError(
+        const TVec & vec) const {
+    typename TVec::value_type error = 0;
+
+
+    for (int i = 0; i < TVec::rows; ++i) {
+        error += (vec[i] - _mean[i]) * (vec[i] - _mean[i]);
+    }
+
+
+    return error;
+}
 
 #endif // COLORBLIND_BRIEF_MATCH_ANOMALY_H

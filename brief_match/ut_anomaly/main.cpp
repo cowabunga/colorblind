@@ -2,16 +2,26 @@
 
 #include <iostream>
 #include <cmath>
+#include <algorithm>
 
 
-void test_meanOfVectors();
-void test_varianceOfVectors();
+typedef cv::Mat_<float> Matf;
+
+
+void test_TDistribution();
 void test_TDistribution_calcMean();
 void test_TDistribution_calcVariance();
-void test_computeDensity();
+void test_TDistribution_calcDensity();
 
-void assertEqual(const cv::Point2f &, const cv::Point2f &, float);
+void test_TAnomalyDetector();
+
+
+
+
+
+
 void assertEqual(const Matf &, const Matf &, float);
+void assertEqual(float, float, float);
 void assertTrue(bool);
 
 
@@ -50,26 +60,6 @@ void assertionFailed(const T & a, const T & b) {
 }
 
 
-
-template <typename T>
-void assertEqual(const T & a, const T & b) {
-    if (a != b) {
-        assertionFailed(a, b);
-    }
-}
-
-
-
-void assertEqual(const cv::Point2f & a
-        , const cv::Point2f & b
-        , float EPSILON = 0.0001) {
-    if (std::fabs(a.x - b.x) > EPSILON || std::fabs(a.y - b.y) > EPSILON) {
-        assertionFailed(a, b);
-    }
-}
-
-
-
 void assertEqual(const Matf & A, const Matf & B, float EPSILON = 0.0001) {
     if (A.rows != B.rows || A.cols != B.cols) {
         assertionFailed(A, B);
@@ -86,42 +76,13 @@ void assertEqual(const Matf & A, const Matf & B, float EPSILON = 0.0001) {
 
 
 
-
-void assertTrue(bool expr) {
-    assertEqual(expr, true);
-}
-
-
-
-
-
-void test_meanOfVectors() {
-    typedef cv::Point2f P;
-
-    {
-        P a[10] = {
-            P(8.710867, 11.523142), P(8.097444, 6.503540),
-            P(13.866495, 8.814358), P(13.889156, 7.560562),
-            P(8.442556, 5.409871), P(14.403722, 11.449097),
-            P(1.426250, 11.697567), P(12.359932, 12.446966),
-            P(14.937492, 5.528084), P(12.733541, 20.837173)
-        };
-
-        std::vector<P> vecs(a, a + 10);
-
-        P mean = meanOfVectors(vecs);
-
-        assertEqual(mean, P(10.8867, 10.177));
-    }
-
-    {
-        std::vector<P> vecs;
-
-        P mean = meanOfVectors(vecs);
-
-        assertEqual(mean, P(0, 0));
+void assertEqual(float a, float b, float EPSILON = 0.0001) {
+    if (std::fabs(a - b) > EPSILON) {
+        assertionFailed(a, b);
     }
 }
+
+
 
 
 
@@ -176,45 +137,24 @@ void test_TDistribution_calcVariance() {
         std::vector<P> vecs(a, a + 10);
 
         Matf var = distribution.calcVariance(vecs);
-    }
-}
 
-
-void test_varianceOfVectors() {
-    typedef cv::Point2f P;
-
-    {
-        P a[10] = {
-            P(8.710867, 11.523142), P(8.097444, 6.503540),
-            P(13.866495, 8.814358), P(13.889156, 7.560562),
-            P(8.442556, 5.409871), P(14.403722, 11.449097),
-            P(1.426250, 11.697567), P(12.359932, 12.446966),
-            P(14.937492, 5.528084), P(12.733541, 20.837173)
-        };
-
-        std::vector<P> vecs(a, a + 10);
-
-
-        Matf var = varianceOfVectors(vecs);
-
-
-        // Octave result
         Matf expect(2, 2);
         expect(0, 0) = 16.02417;
         expect(0, 1) = 0.13414;
         expect(1, 0) = 0.13414;
         expect(1, 1) = 19.10693;
 
-
         assertEqual(var, expect);
-
-        // det(expect) = 306.15;
-        assertTrue(det(var) - float(306.15) < 0.01);
     }
 }
 
-void test_computeDensity() {
-    typedef cv::Point2f P;
+
+
+
+void test_TDistribution_calcDensity() {
+    typedef cv::Vec2f P;
+
+    TDistribution distribution;
 
     {
         P a[10] = {
@@ -228,34 +168,81 @@ void test_computeDensity() {
         std::vector<P> vecs(a, a + 10);
 
 
-        Matf var = varianceOfVectors(vecs);
-        P mean = meanOfVectors(vecs);
+        Matf var = distribution.calcVariance(vecs);
+        P mean = distribution.calcMean(vecs);
+        float sigma = sqrt(cv::determinant(var));
 
-        Matf ivar;
+        Matf iVar;
 
-        cv::invert(var, ivar);
+        cv::invert(var, iVar);
 
-        float density = computeDensity(1, mean, ivar, P(10, 10));
 
-        assertTrue(std::fabs(density - 0.97503) < 0.0001);
+        float density = distribution.calcDensity(P(10, 10), mean, iVar, sigma);
+
+        assertEqual(density, 0.0088688);
     }
-
 }
 
 
 
 
-int main() {
-    test_meanOfVectors();
 
-    test_varianceOfVectors();
-
-    test_computeDensity();
-
-
+void test_TDistribution() {
     test_TDistribution_calcMean();
-
     test_TDistribution_calcVariance();
+    test_TDistribution_calcDensity();
+}
+
+
+
+
+
+void test_TAnomalyDetector() {
+    typedef cv::Vec2f P;
+
+    P a[10] = {
+        P(8.710867, 11.523142), P(8.097444, 6.503540),
+        P(13.866495, 8.814358), P(13.889156, 7.560562),
+        P(8.442556, 5.409871), P(14.403722, 11.449097),
+        P(1.426250, 11.697567), P(12.359932, 12.446966),
+        P(14.937492, 5.528084), P(12.733541, 20.837173)
+    };
+
+    TAnomalyDetector<P> detector;
+    std::vector<P> vecs(a, a + 10);
+
+
+    detector.init(vecs);
+
+
+    std::vector<size_t> indexes = detector.getFilteredIndexes(vecs, 1);
+
+
+    float maxErrorOfGoodVecs = 0;
+    for (std::vector<size_t>::const_iterator it = indexes.begin()
+            ; it != indexes.end(); ++it) {
+        float curError = detector.calcError(vecs[*it]);
+
+        maxErrorOfGoodVecs = std::max(maxErrorOfGoodVecs, curError);
+    }
+
+    for (size_t i = 0; i < vecs.size(); ++i) {
+        float curError = detector.calcError(vecs[i]);
+
+        if (curError <= maxErrorOfGoodVecs
+            && std::find(indexes.begin(), indexes.end(), i) == indexes.end()) {
+            std::cerr << "Error: good vector detected as anomaly."
+                    << std::endl;
+            assertionFailed(maxErrorOfGoodVecs, curError);
+        }
+    }
+}
+
+
+int main() {
+    test_TDistribution();
+
+    test_TAnomalyDetector();
 
     return 0;
 }
