@@ -140,6 +140,8 @@ typename TVec::value_type TDistribution::calcDensity(const TVec & vec
 
 
 
+
+
 template <typename TVec>
 class TAnomalyDetector {
     public:
@@ -154,9 +156,12 @@ class TAnomalyDetector {
 
     const cv::Mat_<typename TVec::value_type> & getVariance() const;
 
+    std::vector<size_t> getFilteredIndexes(const std::vector<TVec> & evec) const;
 
     std::vector<size_t> getFilteredIndexes(const std::vector<TVec> & evec
             , typename TVec::value_type thresh) const;
+
+    typename TVec::value_type calcError(const TVec & vec) const;
 
 
     private:
@@ -205,6 +210,13 @@ const cv::Mat_<typename TVec::value_type> & TAnomalyDetector<TVec>::getVariance(
 }
 
 
+template <typename TVec>
+std::vector<size_t> TAnomalyDetector<TVec>::getFilteredIndexes(
+        const std::vector<TVec> & evec) const {
+    return this->getFilteredIndexes(evec, typename TVec::value_type(TVec::rows));
+}
+
+
 
 // http://en.wikipedia.org/wiki/Multivariate_normal_distribution#Tolerance_region
 template <typename TVec>
@@ -214,9 +226,9 @@ std::vector<size_t> TAnomalyDetector<TVec>::getFilteredIndexes(
     std::vector<size_t> goodIndexes;
 
 
-    for (int i = 0; i < evec.size(); ++i) {
+    for (size_t i = 0; i < evec.size(); ++i) {
         typename TVec::value_type hi =
-                _distrib.calcHi(evec[i], _mean, _iVariance, _sigma);
+                _distrib.calcHi(evec[i], _mean, _iVariance);
 
         if (hi <= thresh) {
             goodIndexes.push_back(i);
@@ -227,5 +239,20 @@ std::vector<size_t> TAnomalyDetector<TVec>::getFilteredIndexes(
     return goodIndexes;
 }
 
+
+
+template <typename TVec>
+typename TVec::value_type TAnomalyDetector<TVec>::calcError(
+        const TVec & vec) const {
+    typename TVec::value_type error = 0;
+
+
+    for (int i = 0; i < TVec::rows; ++i) {
+        error += (vec[i] - _mean[i]) * (vec[i] - _mean[i]);
+    }
+
+
+    return error;
+}
 
 #endif // COLORBLIND_BRIEF_MATCH_ANOMALY_H
