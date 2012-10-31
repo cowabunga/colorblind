@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <cmath>
+#include <algorithm>
 
 
 typedef cv::Mat_<float> Matf;
@@ -213,8 +214,27 @@ void test_TAnomalyDetector() {
 
     detector.init(vecs);
 
-    {
 
+    std::vector<size_t> indexes = detector.getFilteredIndexes(vecs, 1);
+
+
+    float maxErrorOfGoodVecs = 0;
+    for (std::vector<size_t>::const_iterator it = indexes.begin()
+            ; it != indexes.end(); ++it) {
+        float curError = detector.calcError(vecs[*it]);
+
+        maxErrorOfGoodVecs = std::max(maxErrorOfGoodVecs, curError);
+    }
+
+    for (size_t i = 0; i < vecs.size(); ++i) {
+        float curError = detector.calcError(vecs[i]);
+
+        if (curError <= maxErrorOfGoodVecs
+            && std::find(indexes.begin(), indexes.end(), i) == indexes.end()) {
+            std::cerr << "Error: good vector detected as anomaly."
+                    << std::endl;
+            assertionFailed(maxErrorOfGoodVecs, curError);
+        }
     }
 }
 
