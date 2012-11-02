@@ -140,6 +140,8 @@ typename TVec::value_type TDistribution::calcDensity(const TVec & vec
 
 
 
+
+
 template <typename TVec>
 class TAnomalyDetector {
     public:
@@ -154,6 +156,7 @@ class TAnomalyDetector {
 
     const cv::Mat_<typename TVec::value_type> & getVariance() const;
 
+    std::vector<size_t> getFilteredIndexes(const std::vector<TVec> & evec) const;
 
     std::vector<size_t> getFilteredIndexes(const std::vector<TVec> & evec
             , typename TVec::value_type thresh) const;
@@ -204,6 +207,13 @@ const TVec & TAnomalyDetector<TVec>::getMean() const {
 template <typename TVec>
 const cv::Mat_<typename TVec::value_type> & TAnomalyDetector<TVec>::getVariance() const {
     return _variance;
+}
+
+
+template <typename TVec>
+std::vector<size_t> TAnomalyDetector<TVec>::getFilteredIndexes(
+        const std::vector<TVec> & evec) const {
+    return this->getFilteredIndexes(evec, typename TVec::value_type(TVec::rows));
 }
 
 

@@ -5,6 +5,7 @@
 #include <algorithm>
 
 
+
 typedef cv::Mat_<float> Matf;
 
 
@@ -215,7 +216,7 @@ void test_TAnomalyDetector() {
     detector.init(vecs);
 
 
-    std::vector<size_t> indexes = detector.getFilteredIndexes(vecs, 1);
+    std::vector<size_t> indexes = detector.getFilteredIndexes(vecs);
 
 
     float maxErrorOfGoodVecs = 0;
@@ -237,6 +238,7 @@ void test_TAnomalyDetector() {
         }
     }
 }
+
 
 
 int main() {
