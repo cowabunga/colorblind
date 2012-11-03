@@ -190,15 +190,15 @@ static bool find_perspective_transform(const std::vector<Point2f>& pnts1,
 {
   size_t size = pnts1.size();
   assert(size == pnts2.size());
-  if (size > 30)
-    std::cout << "WARNING: too many points to find perspective transform with brute force: "
-              << size << std::endl;
+  //if (size > 30)
+    //std::cout << "WARNING: too many points to find perspective transform with brute force: "
+              //<< size << std::endl;
 
   double min_err = -1, err;
   Mat trf, iTrf;
 
   Point2f from[4], to[4];
-  size_t i, j, k, l;
+  /*size_t i, j, k, l;
   for (i = 0; i < size; ++i) {
     from[0] = pnts1[i];
     to[0] = pnts2[i];
@@ -211,6 +211,7 @@ static bool find_perspective_transform(const std::vector<Point2f>& pnts1,
         for (l = k+1; l < size; ++l) {
           from[3] = pnts1[l];
           to[3] = pnts2[l];
+
           trf = cv::getPerspectiveTransform(from, to);
           if (trf.total() == 9) {
             invert(trf, iTrf);
@@ -226,7 +227,29 @@ static bool find_perspective_transform(const std::vector<Point2f>& pnts1,
         }
       }
     }
+  }*/
+
+  RandomSampleGenerator<int, 4> sample(0, size-1, true);
+
+  for (int j, i = 0; i < 1000; ++sample, ++i) {
+    for (j = 0; j < 4; ++j) {
+      from[j] = pnts1[sample[j]];
+      to[j] = pnts2[sample[j]];
+    }
+
+    trf = cv::getPerspectiveTransform(from, to);
+    if (trf.total() == 9) {
+      invert(trf, iTrf);
+      err = calc_perspective_trf_error(pnts1, pnts2, trf) + 
+        calc_perspective_trf_error(pnts2, pnts1, iTrf);
+      if (min_err < 0 || err < min_err) {
+        min_err = err;
+        best_trf = trf;
+        //std::cout << "Min perspective error: " << err << std::endl;
+      }
+    }
   }
+
   if (min_err < 0)
     return false;
   return true;
@@ -381,6 +404,12 @@ static cv::Mat find_fundamental_transform(
     bool refineF,
     std::vector<cv::DMatch>& outMatches)
 {
+  cv::Mat fundemental;
+  fundemental = Scalar(0);
+
+  if (matches.size() < 7)
+    return fundemental;
+
   // Convert keypoints into Point2f
   std::vector<cv::Point2f> points1, points2;
   for (std::vector<cv::DMatch>:: const_iterator it= matches.begin();
@@ -399,7 +428,7 @@ static cv::Mat find_fundamental_transform(
 
   // Compute F matrix using RANSAC
   std::vector<uchar> inliers(points1.size(),0);
-  cv::Mat fundemental = cv::findFundamentalMat(
+  fundemental = cv::findFundamentalMat(
       cv::Mat(points1), cv::Mat(points2), // matching points
       inliers,
       // match status (inlier or outlier)
@@ -492,11 +521,19 @@ int main(int argc, const char ** argv)
     return 1;
   }
 
+  double im1_scale = std::min(800.0/im1.size().width, 600.0/im1.size().height);
+  Mat im1_scaled(im1.size().height*im1_scale, im1.size().width*im1_scale, im1.type());
+  cv::resize(im1, im1_scaled, im1_scaled.size(), im1_scale, im1_scale );
+
+  double im2_scale = std::min(800.0/im2.size().width, 600.0/im2.size().height);
+  Mat im2_scaled(im2.size().height*im2_scale, im2.size().width*im2_scale, im2.type());
+  cv::resize(im2, im2_scaled, im2_scaled.size(), im2_scale, im2_scale );
+
   // Increase contrast
   time_meter.start();
   Mat im1_eq_hist, im2_eq_hist;
-  equalizeHist(im1, im1_eq_hist);
-  equalizeHist(im2, im2_eq_hist);
+  equalizeHist(im1_scaled, im1_eq_hist);
+  equalizeHist(im2_scaled, im2_eq_hist);
   im1 = im1_eq_hist;
   im2 = im2_eq_hist;
   time_meter.stop("Increasing contrast");
@@ -542,29 +579,29 @@ int main(int argc, const char ** argv)
                 Scalar::all(-1), Scalar::all(-1), std::vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
     imshow("accepted matches", outimg);
 
-    Mat draw;
-    std::vector<Point2f> mpts_1, mpts_2;
-    matches2points(accepted_matches, kpts_1, kpts_2, mpts_1, mpts_2);
-    draw_epipolar_lines(im1, mpts_1, mpts_2, fundamental, draw);
-    imshow("epipolar lines", draw);
-
-    waitKey();
+    /*Mat draw;*/
+    //std::vector<Point2f> mpts_1, mpts_2;
+    //matches2points(accepted_matches, kpts_1, kpts_2, mpts_1, mpts_2);
+    //draw_epipolar_lines(im1, mpts_1, mpts_2, fundamental, draw);
+    //imshow("epipolar lines", draw);
+//
+    /*waitKey();*/
+    good_matches = accepted_matches;
   }
-  //good_matches = accepted_matches;
 
   time_meter.start();
   std::sort(good_matches.begin(), good_matches.end());
   time_meter.stop("Matches sort");
 
-  time_meter.start();
-  std::vector<DMatch> top_matches(
-      good_matches.begin(),
-      good_matches.begin() + min<int>(30,good_matches.size()));
-  time_meter.stop("getting top matches");
+  //time_meter.start();
+  //std::vector<DMatch> top_matches(
+      //good_matches.begin(),
+      //good_matches.begin() + min<int>(30,good_matches.size()));
+  //time_meter.stop("getting top matches");
 
   time_meter.start();
   std::vector<Point2f> mpts_1, mpts_2;
-  matches2points(top_matches, kpts_1, kpts_2, mpts_1, mpts_2);
+  matches2points(good_matches, kpts_1, kpts_2, mpts_1, mpts_2);
   time_meter.stop("matches to points conversion");
 
   time_meter.start();
@@ -576,13 +613,13 @@ int main(int argc, const char ** argv)
     Mat warped;
     Mat diff;
     warpPerspective(im1, warped, trf, im2.size());
-    imshow("perspective", warped);
+    //imshow("perspective", warped);
     absdiff(im2,warped,diff);
     imshow("perspective diff", diff);
     waitKey();
   }
 
-  size_t chunk_size = 300;
+  size_t chunk_size = 10000;
   for( size_t i = 0; i < good_matches.size() ; i += chunk_size ) {
     std::vector<DMatch> top_matches(
         good_matches.begin() + i,
@@ -590,8 +627,8 @@ int main(int argc, const char ** argv)
     Mat outimg;
     drawMatches(im2, kpts_2, im1, kpts_1, top_matches, outimg,
                 Scalar::all(-1), Scalar::all(-1));
-    imshow("matches outliers removed", outimg);
-    waitKey();
+    //imshow("matches outliers removed", outimg);
+    //waitKey();
 
     if (top_matches.size() > 3) {
       time_meter.start();
@@ -605,7 +642,7 @@ int main(int argc, const char ** argv)
       else {
         Mat warped, diff;
         warpPerspective(im1, warped, homographyTrf, im2.size());
-        imshow("homography", warped);
+        //imshow("homography", warped);
         absdiff(im2,warped,diff);
         imshow("homography diff", diff);
         waitKey();
