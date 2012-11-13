@@ -18,6 +18,8 @@
 using namespace cv;
 
 const double MaxMatchDistance = 0.11; // max distance is 1
+const double MaxDistanceToEpipolarLine = 20.0;
+const double FundamentalTrfSearchConfidence = 0.8;
 
 TimeMeter::TimeMeter( bool start_now, bool _verbos ):
     startTime(-1.0), totalTime(0.0), verbos(_verbos)
@@ -500,18 +502,20 @@ static void draw_epipolar_lines(const Mat& im1,
 
 int main(int argc, const char ** argv)
 {
-  if (argc < 3) {
-    std::cerr << "Usage: " << argv[0] << " image1 image2" << std::endl;
+  if (argc < 4) {
+    std::cerr << "Usage: " << argv[0] << " image1 textimage1 image2" << std::endl;
     exit(3);
   }
   const char* im1_name = argv[1];
-  const char* im2_name = argv[2];
+  const char* im1text_name = argv[2];
+  const char* im2_name = argv[3];
 
   int descSize = 32;
   double maxDistance = descSize*8;
   TimeMeter time_meter(false, true);
 
   Mat im1 = imread(im1_name, CV_LOAD_IMAGE_GRAYSCALE);
+  Mat im1text = imread(im1text_name, CV_LOAD_IMAGE_GRAYSCALE);
   Mat im2 = imread(im2_name, CV_LOAD_IMAGE_GRAYSCALE);
 
   if (im1.empty() || im2.empty())
@@ -524,6 +528,10 @@ int main(int argc, const char ** argv)
   double im1_scale = std::min(800.0/im1.size().width, 600.0/im1.size().height);
   Mat im1_scaled(im1.size().height*im1_scale, im1.size().width*im1_scale, im1.type());
   cv::resize(im1, im1_scaled, im1_scaled.size(), im1_scale, im1_scale );
+
+  Mat im1text_scaled(im1text.size().height*im1_scale, im1text.size().width*im1_scale, im1text.type());
+  cv::resize(im1text, im1text_scaled, im1text_scaled.size(), im1_scale, im1_scale );
+  im1text = im1text_scaled;
 
   double im2_scale = std::min(800.0/im2.size().width, 600.0/im2.size().height);
   Mat im2_scaled(im2.size().height*im2_scale, im2.size().width*im2_scale, im2.type());
@@ -568,8 +576,9 @@ int main(int argc, const char ** argv)
   time_meter.start();
   std::vector<DMatch> accepted_matches;
   Mat fundamental = find_fundamental_transform(good_matches, kpts_1, kpts_2,
-                                       20.0, 0.8, true,
-                                       accepted_matches);
+                                       MaxDistanceToEpipolarLine,
+                                       FundamentalTrfSearchConfidence,
+                                       true, accepted_matches);
   time_meter.stop("fundamental transform search");
   std::cout << accepted_matches.size() << " matches accepted" << std::endl;
 
@@ -611,10 +620,13 @@ int main(int argc, const char ** argv)
 
   if (found) {
     Mat warped;
+    Mat im1text_warped;
     Mat diff;
-    warpPerspective(im1, warped, trf, im2.size());
+    //warpPerspective(im1, warped, trf, im2.size());
+    warpPerspective(im1text, im1text_warped, trf, im2.size());
     //imshow("perspective", warped);
-    absdiff(im2,warped,diff);
+    //absdiff(im2,warped,diff);
+    absdiff(im2,im1text_warped,diff);
     imshow("perspective diff", diff);
     waitKey();
   }
@@ -641,7 +653,7 @@ int main(int argc, const char ** argv)
         std::cout << "could not find a homography" << std::endl;
       else {
         Mat warped, diff;
-        warpPerspective(im1, warped, homographyTrf, im2.size());
+        warpPerspective(im1text, warped, homographyTrf, im2.size());
         //imshow("homography", warped);
         absdiff(im2,warped,diff);
         imshow("homography diff", diff);
