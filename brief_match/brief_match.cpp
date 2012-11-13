@@ -618,6 +618,10 @@ int main(int argc, const char ** argv)
   bool found = find_perspective_transform(mpts_1, mpts_2, trf);
   time_meter.stop("perspective transform search");
 
+  Mat im1_with_text;
+  absdiff(im1, im1text, im1_with_text);
+  imshow("original", im1_with_text);
+
   if (found) {
     Mat warped;
     Mat im1text_warped;
