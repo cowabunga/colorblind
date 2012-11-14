@@ -2,8 +2,9 @@
 #define __OPENCV_BRIEF_MATCH_HPP__
 
 #include <stdlib.h>
+#include "opencv2/core/core.hpp"
 
-class TimeMeter
+class VerbosTimer
 {    
     private:
              double startTime;
@@ -12,7 +13,7 @@ class TimeMeter
 
     public:
 
-           TimeMeter( bool start_now = false, bool verbos = false );
+           VerbosTimer( bool start_now = false, bool verbos = false );
 
       void start();
     double stop(const char *measure_name = "time measure");
@@ -55,5 +56,11 @@ class RandomSampleGenerator
     T values[N];
     bool different;
 };
+
+extern bool matchImagesAndPutLabel(const cv::Mat& img1,
+                                   const cv::Mat& img1text,
+                                   const cv::Mat& img2,
+                                   cv::Mat& out,
+                                   bool debug = false);
 
 #endif //__OPENCV_BRIEF_MATCH_HPP__
