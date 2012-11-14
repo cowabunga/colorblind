@@ -3,11 +3,8 @@
  *      Author: CommanderDuck
  */
 #include "opencv2/core/core.hpp"
-#include "opencv2/calib3d/calib3d.hpp"
-#include "opencv2/features2d/features2d.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/highgui/highgui.hpp"
-#include "opencv2/nonfree/features2d.hpp"
 
 #include <vector>
 #include <iostream>
@@ -52,7 +49,7 @@ public:
   }
 
   // set the name of the video file
-  bool setInput(std::string filename) {
+  bool setInputFile(std::string filename) {
     fnumber= 0;
     // In case a resource was already
     // associated with the VideoCapture instance
@@ -60,6 +57,19 @@ public:
     //images.clear();
     // Open the video file
     return capture.open(filename);
+    if (!capture.isOpened())
+      return 1;
+  }
+
+  // set the name of the video file
+  bool setInputCamera(int device) {
+    fnumber= 0;
+    // In case a resource was already
+    // associated with the VideoCapture instance
+    capture.release();
+    //images.clear();
+    // Open the video file
+    return capture.open(device);
     if (!capture.isOpened())
       return 1;
   }
@@ -184,12 +194,12 @@ int main() {
   // Create instance
   VideoProcessor processor;
   // Open video file
-  processor.setInput("C:/Users/Public/Videos/Sample Videos/Wildlife.wmv");
+  processor.setInputCamera(0);
   // Declare a window to display the video
   processor.displayInput("Current Frame");
   processor.displayOutput("Output Frame");
   // Play the video at the original frame rate
-  processor.setDelay(24);
+  processor.setDelay(1000/24);
   // Set the frame processor callback function
   processor.setFrameProcessor(canny);
   // Start the process
