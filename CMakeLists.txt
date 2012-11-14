@@ -449,6 +449,7 @@ add_subdirectory(matcher)
 add_subdirectory(brief_match)
 add_subdirectory(brief_match/photo_match)
 add_subdirectory(brief_match/ut_anomaly)
+add_subdirectory(brief_match/video_processor)
 add_subdirectory(tools/resizer)
 
 # Generate targets for documentation
