@@ -46,10 +46,10 @@ double VerbosTimer::stop(const char* measure_name)
 //Copy (x,y) location of descriptor matches found from KeyPoint data structures into Point2f vectors
 static void matches2points(
     const std::vector<DMatch>& matches,
-    const std::vector<KeyPoint>& kpts_train,
     const std::vector<KeyPoint>& kpts_query,
-    std::vector<Point2f>& pts_train,
-    std::vector<Point2f>& pts_query)
+    const std::vector<KeyPoint>& kpts_train,
+    std::vector<Point2f>& pts_query,
+    std::vector<Point2f>& pts_train)
 {
   pts_train.clear();
   pts_query.clear();
@@ -57,8 +57,8 @@ static void matches2points(
   pts_query.reserve(matches.size());
   for (size_t i = 0; i < matches.size(); ++i) {
     const DMatch& match = matches[i];
-    pts_query.push_back(kpts_query[match.queryIdx].pt);
     pts_train.push_back(kpts_train[match.trainIdx].pt);
+    pts_query.push_back(kpts_query[match.queryIdx].pt);
   }
 
 }
@@ -193,65 +193,60 @@ static bool find_perspective_transform(const std::vector<Point2f>& pnts1,
 {
   size_t size = pnts1.size();
   assert(size == pnts2.size());
-  if (size < 10)
+  if (size < 4)
     return false;
-
-  //if (size > 30)
-    //std::cout << "WARNING: too many points to find perspective transform with brute force: "
-              //<< size << std::endl;
 
   double min_err = -1, err;
   Mat trf, iTrf;
 
   Point2f from[4], to[4];
-  /*size_t i, j, k, l;
-  for (i = 0; i < size; ++i) {
-    from[0] = pnts1[i];
-    to[0] = pnts2[i];
-    for (j = i+1; j < size; ++j) {
-      from[1] = pnts1[j];
-      to[1] = pnts2[j];
-      for (k = j+1; k < size; ++k) {
-        from[2] = pnts1[k];
-        to[2] = pnts2[k];
-        for (l = k+1; l < size; ++l) {
-          from[3] = pnts1[l];
-          to[3] = pnts2[l];
+  if (size < 10) {
+    size_t i, j, k, l;
+    for (i = 0; i < size; ++i) {
+      from[0] = pnts1[i];
+      to[0] = pnts2[i];
+      for (j = i+1; j < size; ++j) {
+        from[1] = pnts1[j];
+        to[1] = pnts2[j];
+        for (k = j+1; k < size; ++k) {
+          from[2] = pnts1[k];
+          to[2] = pnts2[k];
+          for (l = k+1; l < size; ++l) {
+            from[3] = pnts1[l];
+            to[3] = pnts2[l];
 
-          trf = cv::getPerspectiveTransform(from, to);
-          if (trf.total() == 9) {
-            invert(trf, iTrf);
-            err = calc_perspective_trf_error(pnts1, pnts2, trf) + 
-              calc_perspective_trf_error(pnts2, pnts1, iTrf);
-            if (min_err < 0 || err < min_err) {
-              min_err = err;
-              best_trf = trf;
-              //std::cout << "Min perspective error: " << err << std::endl;
+            trf = cv::getPerspectiveTransform(from, to);
+            if (trf.total() == 9) {
+              invert(trf, iTrf);
+              err = calc_perspective_trf_error(pnts1, pnts2, trf) + 
+                calc_perspective_trf_error(pnts2, pnts1, iTrf);
+              if (min_err < 0 || err < min_err) {
+                min_err = err;
+                best_trf = trf;
+              }
             }
           }
-
         }
       }
     }
-  }*/
+  } else {
+    RandomSampleGenerator<int, 4> sample(0, size-1, true);
 
-  RandomSampleGenerator<int, 4> sample(0, size-1, true);
+    for (int j, i = 0; i < 1000; ++sample, ++i) {
+      for (j = 0; j < 4; ++j) {
+        from[j] = pnts1[sample[j]];
+        to[j] = pnts2[sample[j]];
+      }
 
-  for (int j, i = 0; i < 1000; ++sample, ++i) {
-    for (j = 0; j < 4; ++j) {
-      from[j] = pnts1[sample[j]];
-      to[j] = pnts2[sample[j]];
-    }
-
-    trf = cv::getPerspectiveTransform(from, to);
-    if (trf.total() == 9) {
-      invert(trf, iTrf);
-      err = calc_perspective_trf_error(pnts1, pnts2, trf) + 
-        calc_perspective_trf_error(pnts2, pnts1, iTrf);
-      if (min_err < 0 || err < min_err) {
-        min_err = err;
-        best_trf = trf;
-        //std::cout << "Min perspective error: " << err << std::endl;
+      trf = cv::getPerspectiveTransform(from, to);
+      if (trf.total() == 9) {
+        invert(trf, iTrf);
+        err = calc_perspective_trf_error(pnts1, pnts2, trf) + 
+          calc_perspective_trf_error(pnts2, pnts1, iTrf);
+        if (min_err < 0 || err < min_err) {
+          min_err = err;
+          best_trf = trf;
+        }
       }
     }
   }
@@ -278,9 +273,6 @@ static int remove_ambiguous_matches(
         it->clear(); // remove match
         removed++;
       }
-    } else { // does not have 2 neighbours
-      //it->clear(); // remove match
-      //removed++;
     }
   }
   return removed;
@@ -387,6 +379,7 @@ static void match_features(
   //timer.start();
   //get_symmetrical_matches(matches21, matches12, matches);
   //timer.stop("getting symmetrical matches");
+
   for (std::vector<std::vector<cv::DMatch> >::const_iterator it = matches21.begin();
       it!= matches21.end(); ++it)
     if (it->size() > 1)
@@ -416,19 +409,7 @@ static cv::Mat find_fundamental_transform(
 
   // Convert keypoints into Point2f
   std::vector<cv::Point2f> points1, points2;
-  for (std::vector<cv::DMatch>:: const_iterator it= matches.begin();
-      it!= matches.end(); ++it) {
-    // Get the position of left keypoints
-    float x = keypoints1[it->queryIdx].pt.x;
-    float y = keypoints1[it->queryIdx].pt.y;
-    points1.push_back(cv::Point2f(x,y));
-    // Get the position of right keypoints
-    x = keypoints2[it->trainIdx].pt.x;
-    y = keypoints2[it->trainIdx].pt.y;
-    points2.push_back(cv::Point2f(x,y));
-  }
-  // TODO use the following func instead:
-  //matches2points(matches, keypoints1, keypoints2, points1, points2);
+  matches2points(matches, keypoints1, keypoints2, points1, points2);
 
   // Compute F matrix using RANSAC
   std::vector<uchar> inliers(points1.size(),0);
@@ -452,20 +433,7 @@ static cv::Mat find_fundamental_transform(
     // all accepted matches
     // Convert keypoints into Point2f
     // for final F computation
-    points1.clear();
-    points2.clear();
-    // TODO use matches2points()
-    for (std::vector<cv::DMatch>:: const_iterator it = outMatches.begin();
-        it != outMatches.end(); ++it) {
-      // Get the position of left keypoints 
-      float x = keypoints1[it->queryIdx].pt.x;
-      float y = keypoints1[it->queryIdx].pt.y;
-      points1.push_back(cv::Point2f(x,y));
-      // Get the position of right keypoints
-      x = keypoints2[it->trainIdx].pt.x;
-      y = keypoints2[it->trainIdx].pt.y;
-      points2.push_back(cv::Point2f(x,y));
-    }
+    matches2points(outMatches, keypoints1, keypoints2, points1, points2);
     // Compute 8-point F from all accepted matches
     fundemental = cv::findFundamentalMat(
         cv::Mat(points1), cv::Mat(points2), // matches
@@ -502,6 +470,30 @@ static void draw_epipolar_lines(const Mat& im1,
   }
 }
 
+static void overlay_image(const cv::Mat& src,
+                          const cv::Mat& overlay,
+                          cv::Mat& out)
+{
+  Size src_sz = src.size();
+  Size over_sz = overlay.size();
+  int x, y, i;
+  double alpha;
+  out = src;
+  for( x = 0; x < over_sz.width && x < src_sz.width; ++x ) {
+    for( y = 0; y < over_sz.height && y < src_sz.height; ++y ) {
+      CvScalar source = src.at<CvScalar>(y, x);
+      CvScalar over = overlay.at<CvScalar>(y, x);
+      CvScalar merged;
+      alpha = over.val[3]*1.0/255;
+      for( i = 0; i < 3; ++i )
+        merged.val[i] = int(alpha*source.val[i] + (1.0-alpha)*over.val[i]);
+      merged.val[3] = source.val[3];
+      // FIXME: not working :(
+      out.at<CvScalar>(y, x) = merged;
+    }
+  }
+}
+
 bool matchImagesAndPutLabel(
     const Mat& img1,
     const Mat& img1text,
@@ -509,39 +501,41 @@ bool matchImagesAndPutLabel(
     Mat& out,
     bool debug)
 {
-  int descSize = 32;
-  double maxDistance = descSize*8;
-  VerbosTimer timer(false, debug);
   bool images_matched = false;
+
+  if (img1.empty() || img2.empty() || img1text.empty())
+    return images_matched;
+
+  cv::Mat im1 = img1, im1text = img1text, im2 = img2;
+  cv::Mat im1_scaled, im1text_scaled, im2_scaled;
+
+  double im1_scale = std::min(800.0/im1.size().width, 600.0/im1.size().height);
+  cv::resize(im1, im1_scaled, Size(), im1_scale, im1_scale );
+  im1 = im1_scaled;
+
+  cv::resize(im1text, im1text_scaled, Size(), im1_scale, im1_scale );
+  im1text = im1text_scaled;
+
+  double im2_scale = std::min(800.0/im2.size().width, 600.0/im2.size().height);
+  cv::resize(im2, im2_scaled, Size(), im2_scale, im2_scale );
+  im2 = im2_scaled;
 
   if (img1.channels() != 3 || img1text.channels() != 3 || img2.channels() != 3)
     return images_matched;
 
-  Mat im1, im1text, im2;
-  cv::cvtColor(img1, im1, CV_BGR2GRAY);
-  cv::cvtColor(img1text, im1text, CV_BGR2GRAY);
-  cv::cvtColor(img2, im2, CV_BGR2GRAY);
+  cv::cvtColor(im1, im1, CV_BGR2GRAY);
+  cv::cvtColor(im1text, im1text, CV_BGR2GRAY);
+  cv::cvtColor(im2, im2, CV_BGR2GRAY);
 
-  if (im1.empty() || im2.empty() || im1text.empty())
-    return images_matched;
-
-  double im1_scale = std::min(800.0/im1.size().width, 600.0/im1.size().height);
-  Mat im1_scaled(im1.size().height*im1_scale, im1.size().width*im1_scale, im1.type());
-  cv::resize(im1, im1_scaled, im1_scaled.size(), im1_scale, im1_scale );
-
-  Mat im1text_scaled(im1text.size().height*im1_scale, im1text.size().width*im1_scale, im1text.type());
-  cv::resize(im1text, im1text_scaled, im1text_scaled.size(), im1_scale, im1_scale );
-  im1text = im1text_scaled;
-
-  double im2_scale = std::min(800.0/im2.size().width, 600.0/im2.size().height);
-  Mat im2_scaled(im2.size().height*im2_scale, im2.size().width*im2_scale, im2.type());
-  cv::resize(im2, im2_scaled, im2_scaled.size(), im2_scale, im2_scale );
+  int descSize = 32;
+  double maxDistance = descSize*8;
+  VerbosTimer timer(false, debug);
 
   // Increase contrast
   timer.start();
   Mat im1_eq_hist, im2_eq_hist;
-  equalizeHist(im1_scaled, im1_eq_hist);
-  equalizeHist(im2_scaled, im2_eq_hist);
+  equalizeHist(im1, im1_eq_hist);
+  equalizeHist(im2, im2_eq_hist);
   im1 = im1_eq_hist;
   im2 = im2_eq_hist;
   timer.stop("Increasing contrast");
@@ -588,10 +582,10 @@ bool matchImagesAndPutLabel(
 
   timer.start();
   std::vector<DMatch> accepted_matches;
-  Mat fundamental; /* = find_fundamental_transform(good_matches, kpts_1, kpts_2,
+  Mat fundamental = find_fundamental_transform(good_matches, kpts_2, kpts_1,
                                        MaxDistanceToEpipolarLine,
                                        FundamentalTrfSearchConfidence,
-                                       true, accepted_matches);*/
+                                       true, accepted_matches);
   timer.stop("fundamental transform search");
 
   if (fundamental.total() > 1 && accepted_matches.size() > 0) {
@@ -601,12 +595,12 @@ bool matchImagesAndPutLabel(
                   Scalar::all(-1), Scalar::all(-1), std::vector<char>(),
                   DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
       imshow("accepted matches", outimg);
-      /*Mat draw;*/
-      //std::vector<Point2f> mpts_1, mpts_2;
-      //matches2points(accepted_matches, kpts_1, kpts_2, mpts_1, mpts_2);
-      //draw_epipolar_lines(im1, mpts_1, mpts_2, fundamental, draw);
-      //imshow("epipolar lines", draw);
-      /*waitKey();*/
+      /*Mat draw;
+      std::vector<Point2f> mpts_1, mpts_2;
+      matches2points(accepted_matches, kpts_2, kpts_1, mpts_2, mpts_1);
+      draw_epipolar_lines(im1, mpts_1, mpts_2, fundamental, draw);
+      imshow("epipolar lines", draw);
+      waitKey();*/
     }
     good_matches = accepted_matches;
     std::cout << accepted_matches.size() << " matches accepted" << std::endl;
@@ -616,15 +610,9 @@ bool matchImagesAndPutLabel(
   std::sort(good_matches.begin(), good_matches.end());
   timer.stop("Matches sort");
 
-  //timer.start();
-  //std::vector<DMatch> top_matches(
-      //good_matches.begin(),
-      //good_matches.begin() + min<int>(30,good_matches.size()));
-  //timer.stop("getting top matches");
-
   timer.start();
   std::vector<Point2f> mpts_1, mpts_2;
-  matches2points(good_matches, kpts_1, kpts_2, mpts_1, mpts_2);
+  matches2points(good_matches, kpts_2, kpts_1, mpts_2, mpts_1);
   timer.stop("matches to points conversion");
 
   timer.start();
@@ -634,62 +622,49 @@ bool matchImagesAndPutLabel(
 
   if (debug) {
     Mat im1_with_text;
-    absdiff(im1, im1text, im1_with_text);
+    absdiff(im1_scaled, im1text_scaled, im1_with_text);
+    //overlay_image(im1_scaled, im1text_scaled, im1_with_text);
     imshow("original", im1_with_text);
   }
 
-  if (found && good_matches.size() > 0) {
-    Mat warped;
+  if (found) {
     Mat im1text_warped;
-    Mat diff;
-    //warpPerspective(im1, warped, trf, im2.size());
-    warpPerspective(im1text, im1text_warped, trf, im2.size());
-    absdiff(im2,im1text_warped,out);
-    images_matched = true;
+    cv::warpPerspective(im1text_scaled, im1text_warped, trf, im2.size());
     if (debug) {
-      //imshow("perspective", warped);
-      //absdiff(im2,warped,diff);
-      imshow("perspective diff", out);
+      Mat diff;
+      cv::absdiff(im2_scaled, im1text_warped, diff);
+      imshow("perspective diff", diff);
       waitKey();
     }
-    //return true;
+    cv::resize(im1text_warped, im1text_warped, Size(), 1.0/im2_scale, 1.0/im2_scale );
+    cv::absdiff(img2, im1text_warped, out);
+    images_matched = true;
   }
 
-  size_t chunk_size = 10000;
-  for( size_t i = 0; i < good_matches.size() ; i += chunk_size ) {
-    std::vector<DMatch> top_matches(
-        good_matches.begin() + i,
-        good_matches.begin() + min<int>(i + chunk_size, good_matches.size()));
-    if (debug) {
-      Mat outimg;
-      drawMatches(im2, kpts_2, im1, kpts_1, top_matches, outimg,
-                  Scalar::all(-1), Scalar::all(-1));
-      //imshow("matches outliers removed", outimg);
-      //waitKey();
-    }
+  if (good_matches.size() > 3) {
+    timer.start();
+    std::vector<Point2f> mpts_1, mpts_2;
+    matches2points(good_matches, kpts_2, kpts_1, mpts_2, mpts_1);
+    Mat homographyTrf = findHomography(mpts_1, mpts_2, RANSAC, 1);
+    timer.stop("homography search");
 
-    if (top_matches.size() > 3) {
-      timer.start();
-      std::vector<Point2f> mpts_1, mpts_2;
-      matches2points(top_matches, kpts_1, kpts_2, mpts_1, mpts_2);
-      Mat homographyTrf = findHomography(mpts_1, mpts_2, RANSAC, 1);
-      timer.stop("homography search");
-
-      if (homographyTrf.total() < 2)
+    if (homographyTrf.total() < 2) {
+      if (debug)
         std::cout << "could not find a homography" << std::endl;
-      else {
-        Mat im1text_warped;
-        warpPerspective(im1text, im1text_warped, homographyTrf, im2.size());
-        absdiff(im2, im1text_warped, out);
-        images_matched = true;
-        if (debug) {
-          //imshow("homography", warped);
-          imshow("homography diff", out);
-          waitKey();
-        }
-      }
     }
-    break;
+    else {
+      Mat im1text_warped;
+      cv::warpPerspective(im1text_scaled, im1text_warped, homographyTrf, im2.size());
+      if (debug) {
+        cv::Mat diff;
+        cv::absdiff(im2_scaled, im1text_warped, diff);
+        imshow("homography diff", diff);
+        waitKey();
+      }
+      cv::resize(im1text_warped, im1text_warped, Size(), 1.0/im2_scale, 1.0/im2_scale );
+      cv::absdiff(img2, im1text_warped, out);
+      images_matched = true;
+    }
   }
 
   if (debug)
