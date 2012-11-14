@@ -2,6 +2,8 @@
  * Brief matcher
  *      Author: CommanderDuck
  */
+#include "photo_match.hpp"
+
 #include "opencv2/core/core.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/highgui/highgui.hpp"
@@ -190,18 +192,42 @@ void canny(cv::Mat& img, cv::Mat& out) {
   cv::threshold(out,out,128,255,cv::THRESH_BINARY_INV);
 }
 
-int main() {
+cv::Mat image;
+cv::Mat image_label;
+
+void panny(cv::Mat& img, cv::Mat& out) {
+  if (!matchImagesAndPutLabel(image, image_label, img, out)) {
+    out = img;
+  } else {
+    std::cout << "Matched!" << std::endl;
+  }
+  //cv::Canny(out,out,100,200);
+  //cv::threshold(out,out,128,255,cv::THRESH_BINARY_INV);
+}
+
+int main(int argc, char* argv[]) {
+  if (argc < 3) {
+    std::cerr << "Usage: " << argv[0] << " image image_label" << std::endl;
+    return 1;
+  }
+  const char* image_fname = argv[1];
+  const char* image_label_fname = argv[2];
+
+  image = cv::imread(image_fname);
+  image_label = cv::imread(image_label_fname);
+
   // Create instance
   VideoProcessor processor;
   // Open video file
   processor.setInputCamera(0);
+  /*processor.setInputFile(argv[1]);*/
   // Declare a window to display the video
   processor.displayInput("Current Frame");
   processor.displayOutput("Output Frame");
   // Play the video at the original frame rate
   processor.setDelay(1000/24);
   // Set the frame processor callback function
-  processor.setFrameProcessor(canny);
+  processor.setFrameProcessor(panny);
   // Start the process
   processor.run();
 

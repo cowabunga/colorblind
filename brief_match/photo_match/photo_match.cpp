@@ -193,7 +193,7 @@ static bool find_perspective_transform(const std::vector<Point2f>& pnts1,
 {
   size_t size = pnts1.size();
   assert(size == pnts2.size());
-  if (size < 4)
+  if (size < 10)
     return false;
 
   //if (size > 30)
@@ -511,7 +511,7 @@ bool matchImagesAndPutLabel(
 {
   int descSize = 32;
   double maxDistance = descSize*8;
-  VerbosTimer timer(false, true);
+  VerbosTimer timer(false, debug);
   bool images_matched = false;
 
   if (img1.channels() != 3 || img1text.channels() != 3 || img2.channels() != 3)
@@ -549,6 +549,9 @@ bool matchImagesAndPutLabel(
   std::vector<KeyPoint> kpts_1, kpts_2;
   detect_features(im1, im2, timer, kpts_1, kpts_2); 
 
+  if (kpts_1.empty() || kpts_2.empty())
+    return false;
+
   timer.start();
   Mat desc_1, desc_2;
   BriefDescriptorExtractor desc_extractor(descSize);
@@ -560,11 +563,21 @@ bool matchImagesAndPutLabel(
   std::vector<DMatch> matches;
   match_features(desc_1, desc_2, timer, matches);
 
+  if (debug) {
+    Mat outimg;
+    drawMatches(im2, kpts_2, im1, kpts_1, matches, outimg,
+                Scalar::all(-1), Scalar::all(-1), std::vector<char>(),
+                DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+    imshow("all matches", outimg);
+    waitKey();
+  }
+
   // Compute and print distance historgam
   //compute_distance_historgam(matches, 20);
 
   // Plot all matches histogram
-  plot_hist_image(matches, 100, 5);
+  if (debug)
+    plot_hist_image(matches, 100, 5);
 
   // Get only relatively good matches
   timer.start();
@@ -575,12 +588,11 @@ bool matchImagesAndPutLabel(
 
   timer.start();
   std::vector<DMatch> accepted_matches;
-  Mat fundamental = find_fundamental_transform(good_matches, kpts_1, kpts_2,
+  Mat fundamental; /* = find_fundamental_transform(good_matches, kpts_1, kpts_2,
                                        MaxDistanceToEpipolarLine,
                                        FundamentalTrfSearchConfidence,
-                                       true, accepted_matches);
+                                       true, accepted_matches);*/
   timer.stop("fundamental transform search");
-  std::cout << accepted_matches.size() << " matches accepted" << std::endl;
 
   if (fundamental.total() > 1 && accepted_matches.size() > 0) {
     if (debug) {
@@ -597,6 +609,7 @@ bool matchImagesAndPutLabel(
       /*waitKey();*/
     }
     good_matches = accepted_matches;
+    std::cout << accepted_matches.size() << " matches accepted" << std::endl;
   }
 
   timer.start();
@@ -625,17 +638,21 @@ bool matchImagesAndPutLabel(
     imshow("original", im1_with_text);
   }
 
-  if (found && good_matches.size() > 0 && debug) {
+  if (found && good_matches.size() > 0) {
     Mat warped;
     Mat im1text_warped;
     Mat diff;
     //warpPerspective(im1, warped, trf, im2.size());
     warpPerspective(im1text, im1text_warped, trf, im2.size());
-    //imshow("perspective", warped);
-    //absdiff(im2,warped,diff);
-    absdiff(im2,im1text_warped,diff);
-    imshow("perspective diff", diff);
-    waitKey();
+    absdiff(im2,im1text_warped,out);
+    images_matched = true;
+    if (debug) {
+      //imshow("perspective", warped);
+      //absdiff(im2,warped,diff);
+      imshow("perspective diff", out);
+      waitKey();
+    }
+    //return true;
   }
 
   size_t chunk_size = 10000;
@@ -661,12 +678,13 @@ bool matchImagesAndPutLabel(
       if (homographyTrf.total() < 2)
         std::cout << "could not find a homography" << std::endl;
       else {
+        Mat im1text_warped;
+        warpPerspective(im1text, im1text_warped, homographyTrf, im2.size());
+        absdiff(im2, im1text_warped, out);
+        images_matched = true;
         if (debug) {
-          Mat warped, diff;
-          warpPerspective(im1text, warped, homographyTrf, im2.size());
           //imshow("homography", warped);
-          absdiff(im2,warped,diff);
-          imshow("homography diff", diff);
+          imshow("homography diff", out);
           waitKey();
         }
       }
@@ -674,8 +692,8 @@ bool matchImagesAndPutLabel(
     break;
   }
 
-  std::cout << "All steps took " << timer.getTotalTime()
-            << " ms" << std::endl << std::endl;
+  if (debug)
+    std::cout << "All steps took " << timer.getTotalTime() << " ms" << std::endl << std::endl;
 
   return images_matched;
 }

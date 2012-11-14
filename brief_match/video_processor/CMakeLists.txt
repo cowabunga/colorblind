@@ -8,4 +8,4 @@ ocv_include_directories(../include)
 
 project( video_processor )
 add_executable( video_processor video_processor.cpp )
-target_link_libraries(video_processor ${OPENCV_LINKER_LIBS} ${OPENCV_MATCHER_REQUIRED_DEPS} )
+target_link_libraries(video_processor photo_match ${OPENCV_LINKER_LIBS} ${OPENCV_MATCHER_REQUIRED_DEPS} )
