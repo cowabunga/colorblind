@@ -192,6 +192,9 @@ static bool find_perspective_transform(const std::vector<Point2f>& pnts1,
 {
   size_t size = pnts1.size();
   assert(size == pnts2.size());
+  if (size < 4)
+    return false;
+
   //if (size > 30)
     //std::cout << "WARNING: too many points to find perspective transform with brute force: "
               //<< size << std::endl;
@@ -582,7 +585,7 @@ int main(int argc, const char ** argv)
   time_meter.stop("fundamental transform search");
   std::cout << accepted_matches.size() << " matches accepted" << std::endl;
 
-  if (fundamental.total() > 1) {
+  if (fundamental.total() > 1 && accepted_matches.size() > 0) {
     Mat outimg;
     drawMatches(im2, kpts_2, im1, kpts_1, accepted_matches, outimg,
                 Scalar::all(-1), Scalar::all(-1), std::vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
@@ -622,7 +625,7 @@ int main(int argc, const char ** argv)
   absdiff(im1, im1text, im1_with_text);
   imshow("original", im1_with_text);
 
-  if (found) {
+  if (found && good_matches.size() > 0) {
     Mat warped;
     Mat im1text_warped;
     Mat diff;
