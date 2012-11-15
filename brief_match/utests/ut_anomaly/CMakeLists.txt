@@ -4,7 +4,7 @@ SET(OPENCV_MATCHER_REQUIRED_DEPS opencv_core opencv_highgui opencv_nonfree openc
 
 ocv_check_dependencies(${OPENCV_MATCHER_REQUIRED_DEPS})
 ocv_include_modules(${OPENCV_MATCHER_REQUIRED_DEPS})
-ocv_include_directories(../include)
+ocv_include_directories(../../include)
 
 project( ut_anomaly )
 add_executable( ut_anomaly main.cpp )

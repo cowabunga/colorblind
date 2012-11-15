@@ -8,4 +8,4 @@ ocv_include_directories(../include include)
 
 project( brief_match )
 add_executable( brief_match brief_match.cpp )
-target_link_libraries(brief_match photo_match ${OPENCV_LINKER_LIBS} ${OPENCV_MATCHER_REQUIRED_DEPS} )
+target_link_libraries(brief_match photo_match imdb ${OPENCV_LINKER_LIBS} ${OPENCV_MATCHER_REQUIRED_DEPS} )

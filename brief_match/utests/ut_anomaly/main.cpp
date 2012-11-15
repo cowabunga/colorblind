@@ -1,9 +1,11 @@
-#include "../brief_match/anomaly.h"
-
 #include <iostream>
-#include <cmath>
 #include <algorithm>
 
+
+#include <cmath>
+
+
+#include <anomaly.hpp>
 
 
 typedef cv::Mat_<float> Matf;
