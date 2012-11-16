@@ -198,55 +198,34 @@ static bool find_perspective_transform(const std::vector<Point2f>& pnts1,
 
   double min_err = -1, err;
   Mat trf, iTrf;
-
   Point2f from[4], to[4];
+
+  RandomSampleGenerator<int, 4, true> rand_sample(0, size-1);
+  AllSampleGenerator<int, 4> all_sample(0, size-1);
+  SampleGenerator<int, 4>* sample = &rand_sample;
+  int max_sample_num = 1000;
+
   if (size < 10) {
-    size_t i, j, k, l;
-    for (i = 0; i < size; ++i) {
-      from[0] = pnts1[i];
-      to[0] = pnts2[i];
-      for (j = i+1; j < size; ++j) {
-        from[1] = pnts1[j];
-        to[1] = pnts2[j];
-        for (k = j+1; k < size; ++k) {
-          from[2] = pnts1[k];
-          to[2] = pnts2[k];
-          for (l = k+1; l < size; ++l) {
-            from[3] = pnts1[l];
-            to[3] = pnts2[l];
+    sample = &all_sample;
+    max_sample_num = 100000;
+  }
 
-            trf = cv::getPerspectiveTransform(from, to);
-            if (trf.total() == 9) {
-              invert(trf, iTrf);
-              err = calc_perspective_trf_error(pnts1, pnts2, trf) + 
-                calc_perspective_trf_error(pnts2, pnts1, iTrf);
-              if (min_err < 0 || err < min_err) {
-                min_err = err;
-                best_trf = trf;
-              }
-            }
-          }
-        }
-      }
+  for (int j, i = 0; i < max_sample_num && !sample->empty(); ++(*sample), ++i) {
+    for (j = 0; j < 4; ++j) {
+      from[j] = pnts1[(*sample)[j]];
+      to[j] = pnts2[(*sample)[j]];
+      std::cout << (*sample)[j] << ", ";
     }
-  } else {
-    RandomSampleGenerator<int, 4> sample(0, size-1, true);
+    std::cout << std::endl;
 
-    for (int j, i = 0; i < 1000; ++sample, ++i) {
-      for (j = 0; j < 4; ++j) {
-        from[j] = pnts1[sample[j]];
-        to[j] = pnts2[sample[j]];
-      }
-
-      trf = cv::getPerspectiveTransform(from, to);
-      if (trf.total() == 9) {
-        invert(trf, iTrf);
-        err = calc_perspective_trf_error(pnts1, pnts2, trf) + 
-          calc_perspective_trf_error(pnts2, pnts1, iTrf);
-        if (min_err < 0 || err < min_err) {
-          min_err = err;
-          best_trf = trf;
-        }
+    trf = cv::getPerspectiveTransform(from, to);
+    if (trf.total() == 9) {
+      invert(trf, iTrf);
+      err = calc_perspective_trf_error(pnts1, pnts2, trf) + 
+        calc_perspective_trf_error(pnts2, pnts1, iTrf);
+      if (min_err < 0 || err < min_err) {
+        min_err = err;
+        best_trf = trf;
       }
     }
   }
@@ -376,9 +355,9 @@ static void match_features(
   std::cout << removed2 << " ambiguous matches removed" << std::endl;
   timer.stop("removing ambiguous");
 
-  //timer.start();
-  //get_symmetrical_matches(matches21, matches12, matches);
-  //timer.stop("getting symmetrical matches");
+  timer.start();
+  get_symmetrical_matches(matches21, matches12, matches);
+  timer.stop("getting symmetrical matches");
 
   for (std::vector<std::vector<cv::DMatch> >::const_iterator it = matches21.begin();
       it!= matches21.end(); ++it)
