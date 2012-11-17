@@ -38,24 +38,28 @@ class SampleGenerator
     bool _empty;
 };
 
-template<class T, int N, bool different>
-class RandomSampleGenerator: public SampleGenerator<T, N>
+template<int N, bool different>
+class RandomSampleGenerator: public SampleGenerator<int, N>
 {
-  typedef SampleGenerator<T, N> TParent;
+  typedef SampleGenerator<int, N> TParent;
 
   public:
-    RandomSampleGenerator(const T& min_val, const T& max_val):
+    RandomSampleGenerator(const int min_val, const int max_val):
       TParent(min_val, max_val) {
+        int num_variants = max_val - min_val + 1;
+        TParent::_empty = (different && num_variants < N);
         ++(*this);
     }
 
     virtual bool operator ++ () {
-      T v = TParent::minValue;
+      if (TParent::_empty)
+        return false;
+
+      int v, num_variants = TParent::maxValue - TParent::minValue + 1;
       bool found = false;
 
       for (int j = 0, i = 0; i < N;) {
-        // TODO optimize for integers!
-        v = (T)(TParent::minValue + rand()*(TParent::maxValue*1.0/RAND_MAX));
+        v = TParent::minValue + rand() % num_variants;
         found = false;
         if (different)
           for (j = i-1; j>=0; --j)
@@ -66,7 +70,6 @@ class RandomSampleGenerator: public SampleGenerator<T, N>
         if (!found)
           TParent::values[i++] = v;
       }
-      TParent::_empty = false;
       return true;
     }
 };

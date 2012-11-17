@@ -60,7 +60,6 @@ static void matches2points(
     pts_train.push_back(kpts_train[match.trainIdx].pt);
     pts_query.push_back(kpts_query[match.queryIdx].pt);
   }
-
 }
 
 static void plot_hist_image(std::vector<DMatch> data,
@@ -200,10 +199,10 @@ static bool find_perspective_transform(const std::vector<Point2f>& pnts1,
   Mat trf, iTrf;
   Point2f from[4], to[4];
 
-  RandomSampleGenerator<int, 4, true> rand_sample(0, size-1);
+  RandomSampleGenerator<4, true> rand_sample(0, size-1);
   AllSampleGenerator<int, 4> all_sample(0, size-1);
   SampleGenerator<int, 4>* sample = &rand_sample;
-  int max_sample_num = 1000;
+  int max_sample_num = 256;
 
   if (size < 10) {
     sample = &all_sample;
@@ -214,9 +213,7 @@ static bool find_perspective_transform(const std::vector<Point2f>& pnts1,
     for (j = 0; j < 4; ++j) {
       from[j] = pnts1[(*sample)[j]];
       to[j] = pnts2[(*sample)[j]];
-      std::cout << (*sample)[j] << ", ";
     }
-    std::cout << std::endl;
 
     trf = cv::getPerspectiveTransform(from, to);
     if (trf.total() == 9) {
@@ -449,16 +446,34 @@ static void draw_epipolar_lines(const Mat& im1,
   }
 }
 
+#if 0
 static void overlay_image(const cv::Mat& src,
                           const cv::Mat& overlay,
                           cv::Mat& out)
 {
   Size src_sz = src.size();
   Size over_sz = overlay.size();
-  int x, y, i;
+  int row, col, i;
   double alpha;
   out = src;
-  for( x = 0; x < over_sz.width && x < src_sz.width; ++x ) {
+
+  const cv::CvMat m1 = src, m2 = overlay;
+  cv::CVMat m3 = out;
+
+  for( row = 0; row < m1.rows && row < m2.rows; ++row ) {
+    for( col = 0; col < m1.cols && col < m2.cols; ++col ) {
+      double v1 = cvmGet(m1, row, col);
+      double v2 = cvmGet(m1, row, col);
+      alpha = over.val[3]*1.0/255;
+      for( i = 0; i < 3; ++i )
+        merged.val[i] = int(alpha*source.val[i] + (1.0-alpha)*over.val[i]);
+      merged.val[3] = source.val[3];
+      // FIXME: not working :(
+      mtfx.data.db[]
+      out.at<CvScalar>(col, row) = merged;
+    }
+  }
+  /*for( x = 0; x < over_sz.width && x < src_sz.width; ++x ) {
     for( y = 0; y < over_sz.height && y < src_sz.height; ++y ) {
       CvScalar source = src.at<CvScalar>(y, x);
       CvScalar over = overlay.at<CvScalar>(y, x);
@@ -468,10 +483,12 @@ static void overlay_image(const cv::Mat& src,
         merged.val[i] = int(alpha*source.val[i] + (1.0-alpha)*over.val[i]);
       merged.val[3] = source.val[3];
       // FIXME: not working :(
+      mtfx.data.db[]
       out.at<CvScalar>(y, x) = merged;
     }
-  }
+  }*/
 }
+#endif
 
 bool matchImagesAndPutLabel(
     const Mat& img1,
@@ -595,9 +612,40 @@ bool matchImagesAndPutLabel(
   timer.stop("matches to points conversion");
 
   timer.start();
-  Mat trf;
-  bool found = find_perspective_transform(mpts_1, mpts_2, trf);
+  Mat perspective_trf;
+  bool perspective_trf_found = find_perspective_transform(mpts_1, mpts_2, perspective_trf);
   timer.stop("perspective transform search");
+
+  Mat homography_trf;
+  bool homography_trf_found = false;
+  if (good_matches.size() > 3) {
+    timer.start();
+    homography_trf = findHomography(mpts_1, mpts_2, RANSAC, 1);
+    homography_trf_found = homography_trf.total() >= 9;
+    timer.stop("homography search");
+  }
+
+  Mat trf;
+  bool trf_found = perspective_trf_found || homography_trf_found;
+  if (perspective_trf_found && homography_trf_found) {
+    Mat i_trf;
+    invert(perspective_trf, i_trf);
+    double err1 = calc_perspective_trf_error(mpts_1, mpts_2, perspective_trf) +
+                  calc_perspective_trf_error(mpts_2, mpts_1, i_trf);
+    invert(homography_trf, i_trf);
+    double err2 = calc_perspective_trf_error(mpts_1, mpts_2, homography_trf) +
+                  calc_perspective_trf_error(mpts_2, mpts_1, i_trf);
+    std::cout << "perspective trf error: " << err1 << std::endl;
+    std::cout << "homography trf error: " << err2 << std::endl;
+    if (err1 < err2)
+      trf = perspective_trf;
+    else
+      trf = homography_trf;
+  } else if (perspective_trf_found) {
+    trf = perspective_trf;
+  } else if (homography_trf_found) {
+    trf = homography_trf;
+  }
 
   if (debug) {
     Mat im1_with_text;
@@ -606,44 +654,18 @@ bool matchImagesAndPutLabel(
     imshow("original", im1_with_text);
   }
 
-  if (found) {
+  if (trf_found) {
     Mat im1text_warped;
     cv::warpPerspective(im1text_scaled, im1text_warped, trf, im2.size());
     if (debug) {
-      Mat diff;
-      cv::absdiff(im2_scaled, im1text_warped, diff);
-      imshow("perspective diff", diff);
+      cv::Mat im2_w_text;
+      cv::absdiff(im2_scaled, im1text_warped, im2_w_text);
+      imshow("im2_w_text", im2_w_text);
       waitKey();
     }
     cv::resize(im1text_warped, im1text_warped, Size(), 1.0/im2_scale, 1.0/im2_scale );
     cv::absdiff(img2, im1text_warped, out);
     images_matched = true;
-  }
-
-  if (good_matches.size() > 3) {
-    timer.start();
-    std::vector<Point2f> mpts_1, mpts_2;
-    matches2points(good_matches, kpts_2, kpts_1, mpts_2, mpts_1);
-    Mat homographyTrf = findHomography(mpts_1, mpts_2, RANSAC, 1);
-    timer.stop("homography search");
-
-    if (homographyTrf.total() < 2) {
-      if (debug)
-        std::cout << "could not find a homography" << std::endl;
-    }
-    else {
-      Mat im1text_warped;
-      cv::warpPerspective(im1text_scaled, im1text_warped, homographyTrf, im2.size());
-      if (debug) {
-        cv::Mat diff;
-        cv::absdiff(im2_scaled, im1text_warped, diff);
-        imshow("homography diff", diff);
-        waitKey();
-      }
-      cv::resize(im1text_warped, im1text_warped, Size(), 1.0/im2_scale, 1.0/im2_scale );
-      cv::absdiff(img2, im1text_warped, out);
-      images_matched = true;
-    }
   }
 
   if (debug)
