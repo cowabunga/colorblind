@@ -2,10 +2,12 @@
  * Brief matcher
  *      Author: L
  */
-#include "opencv2/highgui/highgui.hpp"
-#include "photo_match.hpp"
 
 #include <iostream>
+
+#include "opencv2/core/core.hpp"
+#include "opencv2/highgui/highgui.hpp"
+#include "photo_match.hpp"
 
 int main(int argc, const char ** argv)
 {

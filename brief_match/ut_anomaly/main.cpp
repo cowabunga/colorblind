@@ -17,25 +17,9 @@ void test_TDistribution_calcDensity();
 void test_TAnomalyDetector();
 
 
-
-
-
-
 void assertEqual(const Matf &, const Matf &, float);
 void assertEqual(float, float, float);
 void assertTrue(bool);
-
-
-template <typename A, int B>
-void assertEqual(const cv::Vec<A, B> & v, const cv::Vec<A, B> q
-        , double EPSILON = 0.0001) {
-    for (int i = 0; i < B; ++i) {
-        if (std::abs(v[i] - q[i]) > EPSILON) {
-            assertionFailed(v, q);
-        }
-    }
-}
-
 
 template <typename A, int B>
 std::ostream & operator << (std::ostream & out, const cv::Vec<A, B> & vec) {
@@ -60,6 +44,15 @@ void assertionFailed(const T & a, const T & b) {
         throw 1;
 }
 
+template <typename A, int B>
+void assertEqual(const cv::Vec<A, B> & v, const cv::Vec<A, B> & q
+        , double EPSILON = 0.0001) {
+    for (int i = 0; i < B; ++i) {
+        if (std::abs(v[i] - q[i]) > EPSILON) {
+            assertionFailed(v, q);
+        }
+    }
+}
 
 void assertEqual(const Matf & A, const Matf & B, float EPSILON = 0.0001) {
     if (A.rows != B.rows || A.cols != B.cols) {
