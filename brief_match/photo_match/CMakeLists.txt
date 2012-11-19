@@ -4,7 +4,7 @@ SET(OPENCV_MATCHER_REQUIRED_DEPS opencv_core opencv_highgui opencv_nonfree openc
 
 ocv_check_dependencies(${OPENCV_MATCHER_REQUIRED_DEPS})
 ocv_include_modules(${OPENCV_MATCHER_REQUIRED_DEPS})
-ocv_include_directories(../include ../brief_matchs/include)
+ocv_include_directories(../include)
 
 project( photo_match )
 add_library( photo_match photo_match.cpp )
