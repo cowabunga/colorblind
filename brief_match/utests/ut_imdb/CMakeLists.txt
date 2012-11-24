@@ -7,5 +7,5 @@ ocv_include_modules(${OPENCV_MATCHER_REQUIRED_DEPS})
 ocv_include_directories(../../include)
 
 project( ut_imdb )
-add_executable( ut_imdb main.cpp )
+add_executable( ut_imdb main.cpp ../../imdb/imdb.cpp)
 target_link_libraries(ut_imdb ${OPENCV_LINKER_LIBS} ${OPENCV_MATCHER_REQUIRED_DEPS} )
