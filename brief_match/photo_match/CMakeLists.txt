@@ -7,5 +7,5 @@ ocv_include_modules(${OPENCV_MATCHER_REQUIRED_DEPS})
 ocv_include_directories(../include)
 
 project( photo_match )
-add_library( photo_match photo_match.cpp )
+add_library( photo_match STATIC photo_match.cpp )
 target_link_libraries(photo_match ${OPENCV_LINKER_LIBS} ${OPENCV_MATCHER_REQUIRED_DEPS} )
