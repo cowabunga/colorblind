@@ -85,14 +85,23 @@ ImdbRecord & Imdb::operator[] (size_t index) {
 
 
 
+size_t Imdb::size() const {
+    return records.size();
+}
+
+
+
 std::string Imdb::dump() const {
     std::stringstream out;
 
+    out << "{" << std::endl;
     for (std::vector<ImdbRecord>::const_iterator it = records.begin();
          it != records.end(); ++it) {
-        out << it->pathToLabelImage << " " <<
-            it->pathToSourceImage << std::endl;
+        out << "    [" << it->pathToSourceImage << ", " <<
+            it->pathToLabelImage << "]" << std::endl;
     }
+
+    out << "}";
 
     return out.str();
 }

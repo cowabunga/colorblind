@@ -35,6 +35,8 @@ class Imdb {
     const ImdbRecord & operator [] (size_t index) const;
     ImdbRecord & operator [] (size_t index);
 
+    size_t size() const;
+
     private:
     std::vector<ImdbRecord> records;
 };
