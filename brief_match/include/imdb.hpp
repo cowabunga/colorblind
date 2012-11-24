@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <string>
+#include <iostream>
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -16,6 +17,8 @@ struct ImdbRecord {
     std::string pathToLabelImage;
 };
 
+std::ostream& operator << (std::ostream & out, const ImdbRecord & record);
+bool operator == (const ImdbRecord & left, const ImdbRecord & right);
 
 
 
@@ -24,14 +27,16 @@ class Imdb {
     Imdb();
 
     int load(const std::string & filename);
-    cv::Mat getImage(size_t index);
-    cv::Mat getLabel(size_t index);
+    cv::Mat getImage(size_t index) const;
+    cv::Mat getLabel(size_t index) const;
 
-    std::string dump();
+    std::string dump() const;
+
+    const ImdbRecord & operator [] (size_t index) const;
+    ImdbRecord & operator [] (size_t index);
 
     private:
     std::vector<ImdbRecord> records;
-
 };
 
 
