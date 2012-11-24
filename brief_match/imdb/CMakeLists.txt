@@ -7,4 +7,4 @@ ocv_include_modules(${OPENCV_MATCHER_REQUIRED_DEPS})
 ocv_include_directories(../include)
 
 project( imdb )
-add_library( imdb imdb.cpp )
+add_library( imdb STATIC imdb.cpp )
