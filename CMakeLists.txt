@@ -444,6 +444,8 @@ add_subdirectory(include)
 
 # OpenCV modules
 add_subdirectory(modules)
+
+# Colorblind subdirectories
 add_subdirectory(matcher)
 add_subdirectory(brief_match/photo_match)
 add_subdirectory(brief_match/imdb)
@@ -452,6 +454,7 @@ add_subdirectory(brief_match/utests/ut_anomaly)
 add_subdirectory(brief_match/video_processor)
 add_subdirectory(brief_match)
 add_subdirectory(tools/resizer)
+add_subdirectory(tools/combiner)
 
 # Generate targets for documentation
 add_subdirectory(doc)
