@@ -1,11 +1,11 @@
 #include <cstdlib>
 #include <cstdio>
 #include <ctime>
-#include <imdb.hpp>
+#include <imgpathes.hpp>
 
 void usage() {
     printf("Usage:\n");
-    printf("./combiner imdb_base_file.db\n");
+    printf("./combiner imgpathes_base_file.db\n");
 }
 
 static const size_t WIDTH = 640;
@@ -24,7 +24,7 @@ int main(int argc, char** argv) {
 
     std::string baseFileName = argv[1];
 
-    Imdb base;
+    ImgPathes base;
     if (base.load(baseFileName) < 0) {
         fprintf(stderr, "Unable to load db from file '%s'.\n", baseFileName.c_str());
         exit(2);

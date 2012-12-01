@@ -4,7 +4,8 @@ SET(OPENCV_MATCHER_REQUIRED_DEPS opencv_core opencv_highgui opencv_nonfree openc
 
 ocv_check_dependencies(${OPENCV_MATCHER_REQUIRED_DEPS})
 ocv_include_modules(${OPENCV_MATCHER_REQUIRED_DEPS})
-ocv_include_directories(../include)
+ocv_include_directories(../../include)
 
-project( imdb )
-add_library( imdb STATIC imdb.cpp )
+project( ut_imgpathes )
+add_executable( ut_imgpathes main.cpp ../../imgpathes/imgpathes.cpp)
+target_link_libraries(ut_imgpathes ${OPENCV_LINKER_LIBS} ${OPENCV_MATCHER_REQUIRED_DEPS} )
