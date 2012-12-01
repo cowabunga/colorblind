@@ -8,19 +8,19 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include <imdb.hpp>
+#include <imgpathes.hpp>
 #include "../assert.h"
 
 std::string getTestData();
-void createTestImdbFile();
-void removeTestImdbFile();
-void test_imdbLoad();
+void createTestImgPathesFile();
+void removeTestImgPathesFile();
+void test_imgpathesLoad();
 
 
 
 
-static const std::string testFileName = "test_file_for_ut_imdb.txt";
-static const std::string testDirName = "Test_dir_for_ut_imdb";
+static const std::string testFileName = "test_file_for_ut_imgpathes.txt";
+static const std::string testDirName = "Test_dir_for_ut_imgpathes";
 static const std::string fullTestFileName = testDirName + "/" + testFileName;
 
 
@@ -41,7 +41,7 @@ std::string getTestData() {
 
 
 
-void createTestImdbFile() {
+void createTestImgPathesFile() {
     UTASSERT(mkdir(testDirName.c_str(), S_IRWXU) == 0);
 
     std::ofstream file;
@@ -58,7 +58,7 @@ void createTestImdbFile() {
 
 
 
-void removeTestImdbFile() {
+void removeTestImgPathesFile() {
     UTASSERT(remove(fullTestFileName.c_str()) == 0);
     UTASSERT(rmdir(testDirName.c_str()) == 0)
 }
@@ -83,8 +83,8 @@ cv::Mat getRandomMatrix(size_t rows = 480, size_t cols = 640) {
 
 
 
-void test_imdbLoad() {
-    Imdb db;
+void test_imgpathesLoad() {
+    ImgPathes db;
 
     UTASSERT(db.load(fullTestFileName) != -1);
 
@@ -95,7 +95,7 @@ void test_imdbLoad() {
     dataStream << getTestData();
 
 
-    ImdbRecord record;
+    ImgPathesRecord record;
     size_t i = 0;
     while (dataStream >> record.pathToSourceImage >> record.pathToLabelImage) {
         UTASSERT(
@@ -111,8 +111,8 @@ void test_imdbLoad() {
 
 
 
-void test_imdbGetImage() {
-    Imdb db;
+void test_imgpathesGetImage() {
+    ImgPathes db;
 
     UTASSERT(db.load(fullTestFileName) != -1);
 
@@ -121,9 +121,9 @@ void test_imdbGetImage() {
 int main() {
     std::srand(360);
 
-    createTestImdbFile();
-    test_imdbLoad();
-    removeTestImdbFile();
+    createTestImgPathesFile();
+    test_imgpathesLoad();
+    removeTestImgPathesFile();
 
     cv::Mat mat = getRandomMatrix();
     cv::imwrite("test_result.jpg", mat);

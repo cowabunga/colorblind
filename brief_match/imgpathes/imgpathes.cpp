@@ -6,10 +6,10 @@
 #include <memory.h>
 
 
-#include <imdb.hpp>
+#include <imgpathes.hpp>
 
 
-std::ostream & operator << (std::ostream & out, const ImdbRecord & record) {
+std::ostream & operator << (std::ostream & out, const ImgPathesRecord & record) {
     out << record.pathToSourceImage << " " << record.pathToLabelImage << std::endl;
 
     return out;
@@ -17,19 +17,19 @@ std::ostream & operator << (std::ostream & out, const ImdbRecord & record) {
 
 
 
-bool operator == (const ImdbRecord & left, const ImdbRecord & right) {
+bool operator == (const ImgPathesRecord & left, const ImgPathesRecord & right) {
     return left.pathToSourceImage == right.pathToSourceImage &&
            left.pathToLabelImage == right.pathToLabelImage;
 }
 
 
 
-Imdb::Imdb() {
+ImgPathes::ImgPathes() {
 }
 
 
 
-int Imdb::load(const std::string & filename) {
+int ImgPathes::load(const std::string & filename) {
     std::ifstream in(filename.c_str());
 
 
@@ -47,7 +47,7 @@ int Imdb::load(const std::string & filename) {
         }
     }
 
-    ImdbRecord record;
+    ImgPathesRecord record;
     while (in >> record.pathToSourceImage >> record.pathToLabelImage) {
         if (pathPrefix.size()) {
             record.pathToSourceImage.insert(0, pathPrefix + std::string("/"));
@@ -61,41 +61,41 @@ int Imdb::load(const std::string & filename) {
 
 
 
-cv::Mat Imdb::getImage(size_t index) const {
+cv::Mat ImgPathes::getImage(size_t index) const {
     return cv::imread(records.at(index).pathToSourceImage);
 }
 
 
 
-cv::Mat Imdb::getLabel(size_t index) const {
+cv::Mat ImgPathes::getLabel(size_t index) const {
     return cv::imread(records.at(index).pathToLabelImage);
 }
 
 
 
-const ImdbRecord & Imdb::operator[] (size_t index) const {
+const ImgPathesRecord & ImgPathes::operator[] (size_t index) const {
     return records.at(index);
 }
 
 
 
-ImdbRecord & Imdb::operator[] (size_t index) {
+ImgPathesRecord & ImgPathes::operator[] (size_t index) {
     return records.at(index);
 }
 
 
 
-size_t Imdb::size() const {
+size_t ImgPathes::size() const {
     return records.size();
 }
 
 
 
-std::string Imdb::dump() const {
+std::string ImgPathes::dump() const {
     std::stringstream out;
 
     out << "{" << std::endl;
-    for (std::vector<ImdbRecord>::const_iterator it = records.begin();
+    for (std::vector<ImgPathesRecord>::const_iterator it = records.begin();
          it != records.end(); ++it) {
         out << "    [" << it->pathToSourceImage << ", " <<
             it->pathToLabelImage << "]" << std::endl;

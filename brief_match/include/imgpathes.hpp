@@ -12,19 +12,19 @@
 
 
 
-struct ImdbRecord {
+struct ImgPathesRecord {
     std::string pathToSourceImage;
     std::string pathToLabelImage;
 };
 
-std::ostream& operator << (std::ostream & out, const ImdbRecord & record);
-bool operator == (const ImdbRecord & left, const ImdbRecord & right);
+std::ostream& operator << (std::ostream & out, const ImgPathesRecord & record);
+bool operator == (const ImgPathesRecord & left, const ImgPathesRecord & right);
 
 
 
-class Imdb {
+class ImgPathes {
     public:
-    Imdb();
+    ImgPathes();
 
     int load(const std::string & filename);
     cv::Mat getImage(size_t index) const;
@@ -32,13 +32,13 @@ class Imdb {
 
     std::string dump() const;
 
-    const ImdbRecord & operator [] (size_t index) const;
-    ImdbRecord & operator [] (size_t index);
+    const ImgPathesRecord & operator [] (size_t index) const;
+    ImgPathesRecord & operator [] (size_t index);
 
     size_t size() const;
 
     private:
-    std::vector<ImdbRecord> records;
+    std::vector<ImgPathesRecord> records;
 };
 
 
