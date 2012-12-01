@@ -23,26 +23,6 @@ void assertEqual(const Matf &, const Matf &, float);
 void assertEqual(float, float, float);
 void assertTrue(bool);
 
-template <typename T>
-void assertionFailed(const T & a, const T & b) {
-        std::cerr << std::endl << std::endl
-                << "ASSERTION FAILED!" << std::endl
-                << "Arg1: " << a << std::endl
-                << "Arg2: " << b << std::endl
-                << std::endl;
-        throw 1;
-}
-
-
-template <typename A, int B>
-void assertEqual(const cv::Vec<A, B> & v, const cv::Vec<A, B> & q
-        , double EPSILON = 0.0001) {
-    for (int i = 0; i < B; ++i) {
-        if (std::abs(v[i] - q[i]) > EPSILON) {
-            assertionFailed(v, q);
-        }
-    }
-}
 
 
 template <typename A, int B>
@@ -56,6 +36,31 @@ std::ostream & operator << (std::ostream & out, const cv::Vec<A, B> & vec) {
 
     return out;
 }
+
+
+
+template <typename T>
+void assertionFailed(const T & a, const T & b) {
+        std::cerr << std::endl << std::endl
+                << "ASSERTION FAILED!" << std::endl
+                << "Arg1: " << a << std::endl
+                << "Arg2: " << b << std::endl
+                << std::endl;
+        throw 1;
+}
+
+
+
+template <typename A, int B>
+void assertEqual(const cv::Vec<A, B> & v, const cv::Vec<A, B> & q
+        , double EPSILON = 0.0001) {
+    for (int i = 0; i < B; ++i) {
+        if (std::abs(v[i] - q[i]) > EPSILON) {
+            assertionFailed(v, q);
+        }
+    }
+}
+
 
 
 void assertEqual(const Matf & A, const Matf & B, float EPSILON = 0.0001) {
