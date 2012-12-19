@@ -10,5 +10,6 @@ tags
 .utags
 .cscope
 /Build/*
+/android/build/
 /Release/*
 !/Build/BUILD_FOLDER
