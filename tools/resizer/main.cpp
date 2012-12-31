@@ -33,7 +33,7 @@ int main(int argc, char** argv) {
 
 
 
-    printf("Resizing image to %d x %d...\n", width, height);
+    printf("Resizing image to %ld x %ld...\n", width, height);
     cv::resize(source, resizedSource, cv::Size(width, height));
 
 
