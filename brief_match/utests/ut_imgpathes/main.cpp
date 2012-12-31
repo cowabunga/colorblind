@@ -1,4 +1,4 @@
-#include <iostream>
+/*#include <iostream>
 #include <fstream>
 #include <sstream>
 
@@ -9,7 +9,7 @@
 #include <unistd.h>
 
 #include <imgpathes.hpp>
-#include "../assert.h"
+#include "assert.h"
 
 std::string getTestData();
 void createTestImgPathesFile();
@@ -129,4 +129,4 @@ int main() {
     cv::imwrite("test_result.jpg", mat);
 
     return 0;
-}
+}*/
