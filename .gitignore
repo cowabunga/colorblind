@@ -12,4 +12,5 @@ tags
 /Build/*
 /android/build/
 /Release/*
+/Debug/*
 !/Build/BUILD_FOLDER
