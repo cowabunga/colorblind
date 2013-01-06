@@ -4,8 +4,10 @@
 
 #include <cstdio>
 #include <cstdlib>
-#include <execinfo.h>
 
+#if _HAVE_EXECINFO_H_
+#   include <execinfo.h>
+#endif
 
 
 
@@ -21,15 +23,13 @@
 
 #ifdef __GNUC__
 #   define FUNCTION_NAME __PRETTY_FUNCTION__
-#endif
+#endif // __GNUC__
 
 
 
 
-#define UTASSERT(CONDITION)                                         \
-    if (!(CONDITION)) {                                             \
-        fprintf(stderr, "%s:%d: %s: Assertion '%s' failed.\n",      \
-                __FILE__, __LINE__, FUNCTION_NAME, #CONDITION);     \
+#if _HAVE_EXECINFO_H_
+#   define PRINT_UTASSERT_BACKTRACE                                 \
         fprintf(stderr, "\nStack trace:\n");                        \
                                                                     \
         void * array[STACK_TRACE_SIZE];                             \
@@ -37,6 +37,18 @@
                                                                     \
         size = backtrace(array, STACK_TRACE_SIZE);                  \
         backtrace_symbols_fd(array, size, 2);                       \
+
+#else
+#   define PRINT_UTASSERT_BACKTRACE true;
+#endif
+
+
+
+#define UTASSERT(CONDITION)                                         \
+    if (!(CONDITION)) {                                             \
+        fprintf(stderr, "%s:%d: %s: Assertion '%s' failed.\n",      \
+                __FILE__, __LINE__, FUNCTION_NAME, #CONDITION);     \
+        PRINT_UTASSERT_BACKTRACE;                                   \
                                                                     \
         abort();                                                    \
     }

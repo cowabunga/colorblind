@@ -24,22 +24,7 @@ void assertEqual(float, float, float);
 void assertTrue(bool);
 
 
-
-template <typename A, int B>
-std::ostream & operator << (std::ostream & out, const cv::Vec<A, B> & vec) {
-    out << "[ ";
-    for (int x = 0; x < B; ++x) {
-        out << vec[x] << " ";
-    }
-
-    out << "]";
-
-    return out;
-}
-
-
-
-/*template <typename T>
+template <typename T>
 void  assertionFailed(const T & a, const T & b) {
         std::cerr << std::endl << std::endl
                 << "ASSERTION FAILED!" << std::endl
@@ -47,7 +32,7 @@ void  assertionFailed(const T & a, const T & b) {
                 << "Arg2: " << b << std::endl
                 << std::endl;
         throw 1;
-}*/
+}
 
 
 
@@ -56,7 +41,7 @@ void assertEqual(const cv::Vec<A, B> & v, const cv::Vec<A, B> & q
         , double EPSILON = 0.0001) {
     for (int i = 0; i < B; ++i) {
         if (std::abs(v[i] - q[i]) > EPSILON) {
-            //assertionFailed(v, q);
+            assertionFailed(v, q);
         }
     }
 }
@@ -65,14 +50,14 @@ void assertEqual(const cv::Vec<A, B> & v, const cv::Vec<A, B> & q
 
 void assertEqual(const Matf & A, const Matf & B, float EPSILON = 0.0001) {
     if (A.rows != B.rows || A.cols != B.cols) {
-        //assertionFailed(A, B);
+        assertionFailed(A, B);
     }
 
     Matf::const_iterator itB = B.begin();
     for (Matf::const_iterator itA = A.begin(); itA != A.end()
             ; ++itA, ++itB) {
         if (std::fabs(*itA - *itB) > EPSILON) {
-            //assertionFailed(A, B);
+            assertionFailed(A, B);
         }
     }
 }
@@ -81,7 +66,7 @@ void assertEqual(const Matf & A, const Matf & B, float EPSILON = 0.0001) {
 
 void assertEqual(float a, float b, float EPSILON = 0.0001) {
     if (std::fabs(a - b) > EPSILON) {
-        //assertionFailed(a, b);
+        assertionFailed(a, b);
     }
 }
 
@@ -236,7 +221,7 @@ void test_TAnomalyDetector() {
             && std::find(indexes.begin(), indexes.end(), i) == indexes.end()) {
             std::cerr << "Error: good vector detected as anomaly."
                     << std::endl;
-            //assertionFailed(maxErrorOfGoodVecs, curError);
+            assertionFailed(maxErrorOfGoodVecs, curError);
         }
     }
 }
