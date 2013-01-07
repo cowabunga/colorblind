@@ -8,5 +8,5 @@ ocv_include_directories(../../include)
 ocv_include_directories(../../../)
 
 project( ut_imgpathes )
-add_executable( ut_imgpathes main.cpp ../../imgpathes/imgpathes.cpp)
+add_executable( ut_imgpathes main.cpp ../../imgpathes/imgpathes.cpp ../MiniCppUnit.cxx)
 target_link_libraries(ut_imgpathes ${OPENCV_LINKER_LIBS} ${OPENCV_MATCHER_REQUIRED_DEPS} )

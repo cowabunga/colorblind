@@ -1,237 +1,133 @@
 #include <iostream>
 #include <algorithm>
 
-
 #include <cmath>
 
-
 #include <anomaly.hpp>
+#include <brief_match/utests/MiniCppUnit.hxx>
 
-
-typedef cv::Mat_<float> Matf;
-
-
-void test_TDistribution();
-void test_TDistribution_calcMean();
-void test_TDistribution_calcVariance();
-void test_TDistribution_calcDensity();
-
-void test_TAnomalyDetector();
-
-
-void assertEqual(const Matf &, const Matf &, float);
-void assertEqual(float, float, float);
-void assertTrue(bool);
-
-
-template <typename T>
-void  assertionFailed(const T & a, const T & b) {
-        std::cerr << std::endl << std::endl
-                << "ASSERTION FAILED!" << std::endl
-                << "Arg1: " << a << std::endl
-                << "Arg2: " << b << std::endl
-                << std::endl;
-        throw 1;
-}
-
-
-
-template <typename A, int B>
-void assertEqual(const cv::Vec<A, B> & v, const cv::Vec<A, B> & q
-        , double EPSILON = 0.0001) {
-    for (int i = 0; i < B; ++i) {
-        if (std::abs(v[i] - q[i]) > EPSILON) {
-            assertionFailed(v, q);
-        }
-    }
-}
-
-
-
-void assertEqual(const Matf & A, const Matf & B, float EPSILON = 0.0001) {
-    if (A.rows != B.rows || A.cols != B.cols) {
-        assertionFailed(A, B);
-    }
-
-    Matf::const_iterator itB = B.begin();
-    for (Matf::const_iterator itA = A.begin(); itA != A.end()
-            ; ++itA, ++itB) {
-        if (std::fabs(*itA - *itB) > EPSILON) {
-            assertionFailed(A, B);
-        }
-    }
-}
-
-
-
-void assertEqual(float a, float b, float EPSILON = 0.0001) {
-    if (std::fabs(a - b) > EPSILON) {
-        assertionFailed(a, b);
-    }
-}
-
-
-
-
-
-
-void test_TDistribution_calcMean() {
-    typedef cv::Vec2f P;
-
-    TDistribution distribution;
-
-
+class AnomalyTests : public TestFixture<AnomalyTests> {
+public:
+    TEST_FIXTURE(AnomalyTests)
     {
-        P a[10] = {
-            P(8.710867, 11.523142), P(8.097444, 6.503540),
-            P(13.866495, 8.814358), P(13.889156, 7.560562),
-            P(8.442556, 5.409871), P(14.403722, 11.449097),
-            P(1.426250, 11.697567), P(12.359932, 12.446966),
-            P(14.937492, 5.528084), P(12.733541, 20.837173)
-        };
-
-        std::vector<P> vecs(a, a + 10);
-
-        P mean = distribution.calcMean(vecs);
-
-        assertEqual(mean, P(10.8867, 10.177));
+        TEST_CASE(testCalcMean);
+        TEST_CASE(testCalcMeanOnEmptyVector);
+        TEST_CASE(testCalcVariance);
+        TEST_CASE(testCalcDensity);
+        TEST_CASE(testAnomalyDetection);
     }
 
-    {
-        std::vector<P> vecs;
 
-        P mean = distribution.calcMean(vecs);
+    typedef cv::Vec2f Vecf;
+    typedef cv::Mat_<float> Matf;
 
-        assertEqual(mean, P(0, 0));
+
+    virtual void setUp() {
+        testData[0] = Vecf(8.710867, 11.523142);
+        testData[1] = Vecf(8.097444, 6.503540);
+        testData[2] = Vecf(13.866495, 8.814358);
+        testData[3] = Vecf(13.889156, 7.560562);
+        testData[4] = Vecf(8.442556, 5.409871);
+        testData[5] = Vecf(14.403722, 11.449097);
+        testData[6] = Vecf(1.426250, 11.697567);
+        testData[7] = Vecf(12.359932, 12.446966);
+        testData[8] = Vecf(14.937492, 5.528084);
+        testData[9] = Vecf(12.733541, 20.837173);
     }
 
-}
+
+    void testCalcMean() {
+        std::vector<Vecf> vecs(testData, testData + 10);
+
+        Vecf mean = distribution.calcMean(vecs);
+
+        ASSERT_EQUALS_EPSILON(mean[0], 10.8867, EPSILON);
+        ASSERT_EQUALS_EPSILON(mean[1], 10.177, EPSILON);
+    }
 
 
-void test_TDistribution_calcVariance() {
-    typedef cv::Vec2f P;
+    void testCalcMeanOnEmptyVector() {
+        std::vector<Vecf> vecs;
 
-    TDistribution distribution;
+        Vecf mean = distribution.calcMean(vecs);
 
-    {
-        P a[10] = {
-            P(8.710867, 11.523142), P(8.097444, 6.503540),
-            P(13.866495, 8.814358), P(13.889156, 7.560562),
-            P(8.442556, 5.409871), P(14.403722, 11.449097),
-            P(1.426250, 11.697567), P(12.359932, 12.446966),
-            P(14.937492, 5.528084), P(12.733541, 20.837173)
-        };
+        ASSERT_EQUALS(mean, Vecf(0, 0));
+    }
 
-        std::vector<P> vecs(a, a + 10);
+
+    void testCalcVariance() {
+        std::vector<Vecf> vecs(testData, testData + 10);
 
         Matf var = distribution.calcVariance(vecs);
 
-        Matf expect(2, 2);
-        expect(0, 0) = 16.02417;
-        expect(0, 1) = 0.13414;
-        expect(1, 0) = 0.13414;
-        expect(1, 1) = 19.10693;
-
-        assertEqual(var, expect);
+        ASSERT_EQUALS_EPSILON(var(0, 0), 16.02417, EPSILON);
+        ASSERT_EQUALS_EPSILON(var(0, 1), 0.13414, EPSILON);
+        ASSERT_EQUALS_EPSILON(var(1, 0), 0.13414, EPSILON);
+        ASSERT_EQUALS_EPSILON(var(1, 1), 19.10693, EPSILON);
     }
-}
 
 
-
-
-void test_TDistribution_calcDensity() {
-    typedef cv::Vec2f P;
-
-    TDistribution distribution;
-
-    {
-        P a[10] = {
-            P(8.710867, 11.523142), P(8.097444, 6.503540),
-            P(13.866495, 8.814358), P(13.889156, 7.560562),
-            P(8.442556, 5.409871), P(14.403722, 11.449097),
-            P(1.426250, 11.697567), P(12.359932, 12.446966),
-            P(14.937492, 5.528084), P(12.733541, 20.837173)
-        };
-
-        std::vector<P> vecs(a, a + 10);
-
+    void testCalcDensity() {
+        std::vector<Vecf> vecs(testData, testData + 10);
 
         Matf var = distribution.calcVariance(vecs);
-        P mean = distribution.calcMean(vecs);
+        Vecf mean = distribution.calcMean(vecs);
         float sigma = sqrt(cv::determinant(var));
 
         Matf iVar;
 
         cv::invert(var, iVar);
 
+        float density =
+            distribution.calcDensity(Vecf(10, 10), mean, iVar, sigma);
 
-        float density = distribution.calcDensity(P(10, 10), mean, iVar, sigma);
-
-        assertEqual(density, 0.0088688);
-    }
-}
-
-
-
-
-
-void test_TDistribution() {
-    test_TDistribution_calcMean();
-    test_TDistribution_calcVariance();
-    test_TDistribution_calcDensity();
-}
-
-
-
-
-
-void test_TAnomalyDetector() {
-    typedef cv::Vec2f P;
-
-    P a[10] = {
-        P(8.710867, 11.523142), P(8.097444, 6.503540),
-        P(13.866495, 8.814358), P(13.889156, 7.560562),
-        P(8.442556, 5.409871), P(14.403722, 11.449097),
-        P(1.426250, 11.697567), P(12.359932, 12.446966),
-        P(14.937492, 5.528084), P(12.733541, 20.837173)
-    };
-
-    TAnomalyDetector<P> detector;
-    std::vector<P> vecs(a, a + 10);
-
-
-    detector.init(vecs);
-
-
-    std::vector<size_t> indexes = detector.getFilteredIndexes(vecs);
-
-
-    float maxErrorOfGoodVecs = 0;
-    for (std::vector<size_t>::const_iterator it = indexes.begin()
-            ; it != indexes.end(); ++it) {
-        float curError = detector.calcError(vecs[*it]);
-
-        maxErrorOfGoodVecs = std::max(maxErrorOfGoodVecs, curError);
+        ASSERT_EQUALS_EPSILON(density, 0.0088688, EPSILON);
     }
 
-    for (size_t i = 0; i < vecs.size(); ++i) {
-        float curError = detector.calcError(vecs[i]);
 
-        if (curError <= maxErrorOfGoodVecs
-            && std::find(indexes.begin(), indexes.end(), i) == indexes.end()) {
-            std::cerr << "Error: good vector detected as anomaly."
-                    << std::endl;
-            assertionFailed(maxErrorOfGoodVecs, curError);
+    void testAnomalyDetection() {
+        TAnomalyDetector<Vecf> detector;
+        std::vector<Vecf> vecs(testData, testData + 10);
+
+        detector.init(vecs);
+
+        std::vector<size_t> indexes = detector.getFilteredIndexes(vecs);
+
+        float maxErrorOfGoodVecs = 0;
+        for (std::vector<size_t>::const_iterator it = indexes.begin();
+             it != indexes.end(); ++it) {
+            float curError = detector.calcError(vecs[*it]);
+
+            maxErrorOfGoodVecs = std::max(maxErrorOfGoodVecs, curError);
+        }
+
+        for (size_t i = 0; i < vecs.size(); ++i) {
+            float curError = detector.calcError(vecs[i]);
+
+            ASSERT_MESSAGE(!(curError <= maxErrorOfGoodVecs &&
+                std::find(indexes.begin(), indexes.end(), i) == indexes.end()),
+                "Element is not anomaly but it wasn't append to non anomaly indexes.");
+
+            ASSERT_MESSAGE(!(curError > maxErrorOfGoodVecs &&
+                std::find(indexes.begin(), indexes.end(), i) != indexes.end()),
+                "Element is anomaly but it was append to non anomaly indexes.");
         }
     }
-}
+
+
+private:
+    static const double EPSILON;
+    Vecf testData[10];
+    TDistribution distribution;
+};
+
+const double AnomalyTests::EPSILON = 0.0001;
+
+REGISTER_FIXTURE(AnomalyTests);
+
 
 
 
 int main() {
-    test_TDistribution();
-
-    test_TAnomalyDetector();
-
-    return 0;
+    return TestFixtureFactory::theInstance().runTests() ? 0 : 1;
 }
