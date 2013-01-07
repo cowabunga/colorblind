@@ -32,7 +32,6 @@ public:
 
 
     void testImgPathesLoadFromFile() {
-        std::cout << std::endl << "DEBUG:" << fullTestFileName << std::endl;
         ImgPathes db;
         ASSERT_MESSAGE(db.load(fullTestFileName) != -1,
             "Can't load pathes from file");
