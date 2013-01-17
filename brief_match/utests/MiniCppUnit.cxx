@@ -27,12 +27,12 @@
 namespace std
 {
   template <typename T>
-  inline bool isnan(T x) { 
-		return _isnan(x) != 0; 
+  inline bool isnan(T x) {
+		return _isnan(x) != 0;
 	}
 	template <typename T>
-	inline bool isinf(T x) { 
-		return _finite(x) == 0; 
+	inline bool isinf(T x) {
+		return _finite(x) == 0;
 	}
 }
 #endif
@@ -80,19 +80,19 @@ std::string TestsListener::summary()
 {
 	std::ostringstream os;
 	os	<< "\nSummary:\n"
-		<< Assert::bold() << "\tExecuted Tests:         " 
+		<< Assert::bold() << "\tExecuted Tests:         "
 		<< _executed << Assert::normal() << std::endl
-		<< Assert::green() << "\tPassed Tests:           " 
-		<< (_executed-_failed-_exceptions) 
+		<< Assert::green() << "\tPassed Tests:           "
+		<< (_executed-_failed-_exceptions)
 		<< Assert::normal() << std::endl;
 	if (_failed > 0)
 	{
-		os 	<< Assert::red() << "\tFailed Tests:           " 
+		os 	<< Assert::red() << "\tFailed Tests:           "
 			<< _failed << Assert::normal() << std::endl;
 	}
 	if (_exceptions > 0)
 	{
-		os 	<< Assert::yellow() << "\tUnexpected exceptions:  " 
+		os 	<< Assert::yellow() << "\tUnexpected exceptions:  "
 			<< _exceptions << Assert::normal() << std::endl;
 	}
 	os << std::endl;
@@ -111,23 +111,23 @@ void Assert::assertTrue(char* strExpression, bool expression,
 	if (!expression)
 	{
 		TestsListener::theInstance().errorsLog() << "\n"
-			<< errmsgTag_testFailedIn() << file 
-			<< errmsgTag_inLine() << linia << "\n" 
-			<< errmsgTag_failedExpression() 
+			<< errmsgTag_testFailedIn() << file
+			<< errmsgTag_inLine() << linia << "\n"
+			<< errmsgTag_failedExpression()
 			<< bold() << strExpression << normal() << "\n";
 		TestsListener::theInstance().testHasFailed();
 	}
 }
 
-void Assert::assertTrueMissatge(char* strExpression, bool expression, 
+void Assert::assertTrueMissatge(char* strExpression, bool expression,
 		const char* missatge, const char* file, int linia)
 {
 	if (!expression)
 	{
 		TestsListener::theInstance().errorsLog() << "\n"
 			<< errmsgTag_testFailedIn() << file
-			<< errmsgTag_inLine() << linia << "\n" 
-			<< errmsgTag_failedExpression() 
+			<< errmsgTag_inLine() << linia << "\n"
+			<< errmsgTag_failedExpression()
 			<< bold() << strExpression << "\n"
 			<< missatge<< normal() << "\n";
 		TestsListener::theInstance().testHasFailed();
@@ -147,7 +147,7 @@ void Assert::assertEquals( const bool& expected, const bool& result,
 	const char* file, int linia )
 {
 	assertEquals(
-		(expected?"true":"false"), 
+		(expected?"true":"false"),
 		(result?"true":"false"),
 		file, linia);
 }
@@ -162,9 +162,14 @@ bool isNaN(double x)
 }
 
 double scaledEpsilon(const double& expected, const double& fuzzyEpsilon )
-{ 
+{
 	const double aa = fabs(expected)+1;
+// FIXME this crutch is for android build not to fail build
+#ifndef ANDROID
 	return (std::isinf(aa))? fuzzyEpsilon: fuzzyEpsilon * aa;
+#else
+	return fuzzyEpsilon;
+#endif
 }
 bool fuzzyEquals(double expected, double result, double fuzzyEpsilon)
 {
@@ -172,7 +177,7 @@ bool fuzzyEquals(double expected, double result, double fuzzyEpsilon)
 }
 void Assert::assertEquals( const double& expected, const double& result,
 		const char* file, int linia )
-{	
+{
 	const double fuzzyEpsilon = 0.000001;
 	assertEqualsEpsilon( expected, result, fuzzyEpsilon, file, linia );
 }
@@ -193,12 +198,12 @@ void Assert::assertEqualsEpsilon( const double& expected, const double& result, 
 	if (isNaN(expected) && isNaN(result) ) return;
 	if (!isNaN(expected) && !isNaN(result) && fuzzyEquals(expected, result, epsilon) ) return;
 
-	TestsListener::theInstance().errorsLog() 
+	TestsListener::theInstance().errorsLog()
 			<< errmsgTag_testFailedIn() << file
-			<< errmsgTag_inLine() << linia << "\n" 
+			<< errmsgTag_inLine() << linia << "\n"
 			<< errmsgTag_expected()
 			<< bold() << expected << normal() << " "
-			<< errmsgTag_butWas() 
+			<< errmsgTag_butWas()
 			<< bold() << result << normal() << "\n";
 	TestsListener::theInstance().testHasFailed();
 }
@@ -216,24 +221,24 @@ int Assert::notEqualIndex( const std::string & one, const std::string & other )
 /**
  * we overload the assert with string doing colored diffs
  *
- * MS Visual6 doesn't allow string by reference :-( 
+ * MS Visual6 doesn't allow string by reference :-(
  */
 void Assert::assertEquals( const std::string expected, const std::string result,
 	const char* file, int linia )
 {
 	if(expected == result)
 		return;
-	
+
 	int indexDiferent = notEqualIndex(expected, result);
 	TestsListener::theInstance().errorsLog()
 		<< file << ", linia: " << linia << "\n"
-		<< errmsgTag_expected() << "\n" << blue() 
+		<< errmsgTag_expected() << "\n" << blue()
 		<< expected.substr(0,indexDiferent)
-		<< green() << expected.substr(indexDiferent) 
+		<< green() << expected.substr(indexDiferent)
 		<< normal() << "\n"
-		<< errmsgTag_butWas() << blue() << "\n" 
+		<< errmsgTag_butWas() << blue() << "\n"
 		<< result.substr(0,indexDiferent)
-		<< red() << result.substr(indexDiferent) 
+		<< red() << result.substr(indexDiferent)
 		<< normal() << std::endl;
 
 	TestsListener::theInstance().testHasFailed();
