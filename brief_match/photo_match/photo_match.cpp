@@ -457,6 +457,7 @@ static void overlay_image(const cv::Mat& src,
   double alpha;
   out = src;
 
+/*
   const cv::CvMat m1 = src, m2 = overlay;
   cv::CVMat m3 = out;
 
@@ -473,22 +474,49 @@ static void overlay_image(const cv::Mat& src,
       out.at<CvScalar>(col, row) = merged;
     }
   }
-  /*for( x = 0; x < over_sz.width && x < src_sz.width; ++x ) {
-    for( y = 0; y < over_sz.height && y < src_sz.height; ++y ) {
+  */
+
+  for( int x = 0; x < over_sz.width && x < src_sz.width; ++x ) {
+    for( int y = 0; y < over_sz.height && y < src_sz.height; ++y ) {
       CvScalar source = src.at<CvScalar>(y, x);
       CvScalar over = overlay.at<CvScalar>(y, x);
-      CvScalar merged;
-      alpha = over.val[3]*1.0/255;
-      for( i = 0; i < 3; ++i )
-        merged.val[i] = int(alpha*source.val[i] + (1.0-alpha)*over.val[i]);
-      merged.val[3] = source.val[3];
-      // FIXME: not working :(
-      mtfx.data.db[]
+      CvScalar merged = source;
+      double alpha1 = 0.01;//source.val[3];
+      double alpha2 = 0.99;//over.val[3];
+
+      if (*(unsigned long*)&over.val[3] < 10000000)
+          continue;
+      std::cout << "[" << *(unsigned long*)&over.val[0] << ", ";
+      std::cout << *(unsigned long*)&over.val[1] << ", ";
+      std::cout << *(unsigned long*)&over.val[2] << ", ";
+      std::cout << *(unsigned long*)&over.val[3] << "]" << std::endl;
+
+      for (unsigned long i = 0; i < 3; ++i)
+          (*(unsigned long*)&merged.val[i]) = (*(unsigned long*)&source.val[i])*alpha1 + (*(unsigned long*)&over.val[i])*alpha2;
+      merged.val[3] = 0;
       out.at<CvScalar>(y, x) = merged;
+      //std::cout << over.val[3] << std::endl;
+      //for( i = 0; i < 3; ++i )
+        //merged.val[i] = int(alpha*source.val[i] + (1.0-alpha)*over.val[i]);
+      //merged.val[3] = source.val[3];
+      // FIXME: not working :(
+      //mtfx.data.db[]
+      //out.at<CvScalar>(y, x) = merged;
     }
-  }*/
+  }
 }
 #endif
+
+static void OverlayImage(cv::Mat& src, cv::Mat& overlay, cv::Mat& out)
+{
+  out = src;
+
+  //cv::Mat mScalar(1, 1, overlay.type(), cvScalarAll(1000.0));
+  //cv::multiply(overlay, mScalar, out, 1.0, overlay.type() );
+  for(int i = 0; i < 3; ++i)
+      cv::absdiff(out, overlay, out);
+  cv::addWeighted(out, 1, overlay, 1, 0.0, out);
+}
 
 bool matchImagesAndPutLabel(
     const Mat& img1,
@@ -606,7 +634,7 @@ bool matchImagesAndPutLabel(
   std::sort(good_matches.begin(), good_matches.end());
   timer.stop("Matches sort");
 
-  timer.start();
+  timer.start( );
   std::vector<Point2f> mpts_1, mpts_2;
   matches2points(good_matches, kpts_2, kpts_1, mpts_2, mpts_1);
   timer.stop("matches to points conversion");
@@ -649,7 +677,8 @@ bool matchImagesAndPutLabel(
 
   if (debug) {
     Mat im1_with_text;
-    absdiff(im1_scaled, im1text_scaled, im1_with_text);
+    //absdiff(im1_scaled, im1text_scaled, im1_with_text);
+    OverlayImage(im1_scaled, im1text_scaled, im1_with_text);
     //overlay_image(im1_scaled, im1text_scaled, im1_with_text);
     imshow("original", im1_with_text);
   }
@@ -659,7 +688,7 @@ bool matchImagesAndPutLabel(
     cv::warpPerspective(im1text_scaled, im1text_warped, trf, im2.size());
     if (debug) {
       cv::Mat im2_w_text;
-      cv::absdiff(im2_scaled, im1text_warped, im2_w_text);
+      OverlayImage(im2_scaled, im1text_warped, im2_w_text);
       imshow("im2_w_text", im2_w_text);
       waitKey();
     }

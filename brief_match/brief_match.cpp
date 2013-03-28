@@ -37,5 +37,6 @@ int main(int argc, const char ** argv)
 
   cv::Mat im2_with_text;
   bool matched = matchImagesAndPutLabel(im1, im1text, im2, im2_with_text, true);
+  std::cout << "end." << std::endl;
   return matched ? 0 : 1;
 }
